@@ -102,6 +102,16 @@ app.get('/api/reports/latest',async(req,res)=>{const r=await db('get','reports',
 // LOGS
 app.get('/api/logs',(req,res)=>res.json(logs));
 
+// Save API key vào Supabase
+app.post('/api/settings/apikey',async(req,res)=>{
+  const key=req.body.key||'';
+  if(!key.startsWith('sk-'))return res.json({ok:false,message:'Invalid key format'});
+  const h={...SBH,'Prefer':'resolution=merge-duplicates'};
+  await axios.post(SB_URL+'/rest/v1/sessions',{key:'anthropic_key',value:key,updated_at:new Date().toISOString()},{headers:h});
+  log('✅ Anthropic API key saved to Supabase');
+  res.json({ok:true});
+});
+
 // AUTH
 app.post('/api/auth/send-otp',async(req,res)=>{
   const{TelegramClient}=require('telegram');const{StringSession}=require('telegram/sessions');
@@ -154,9 +164,14 @@ async function runScan(){
   const session=await getSession();
   log('🔐 Session: '+(session?'YES ('+session.length+' chars) ✅':'NO ❌'));
   if(!session){log('⚠️ No session — authenticate first');return;}
-  const apiKey=process.env.ANTHROPIC_API_KEY;
+  let apiKey=process.env.ANTHROPIC_API_KEY;
+  // Thử load từ Supabase nếu không có trong env
+  if(!apiKey){
+    try{const r=await axios.get(SB_URL+'/rest/v1/sessions?key=eq.anthropic_key',{headers:SBH});if(r.data&&r.data[0]&&r.data[0].value)apiKey=r.data[0].value;}catch(e){}
+  }
   const ai=apiKey?new Anthropic({apiKey}):null;
-  if(!ai)log('⚠️ No ANTHROPIC_API_KEY');
+  if(!ai)log('⚠️ No ANTHROPIC_API_KEY - will add leads without AI analysis');
+  else log('✅ AI ready');
   let newLeads=0,updatedLeads=0;
 
   // TG scan
@@ -177,7 +192,15 @@ async function runScan(){
         const recent=msgs.filter(m=>m.date>cutoff&&m.message).map(m=>({fromMe:m.out,text:m.message}));
         if(!recent.length)continue;
         log('  💬 '+name+' (@'+username+'): '+recent.length+' msgs');
-        if(!ai)continue;
+        // Nếu không có AI, vẫn thêm lead với status 'new'
+        if(!ai){
+          const ex=await db('get','leads','','telegram_username=eq.'+username);
+          if(!ex||!ex.length){
+            await db('post','leads',{id:'lead_tg_'+entity.id,name:name,telegram_username:username,status:'new',note:'Auto-detected from DM (no AI analysis)',sources:'Telegram DM',website:'',lark_email:'',research:'',last_contacted:new Date().toISOString().slice(0,10),last_scanned:new Date().toISOString(),week:Math.ceil((new Date()-new Date(new Date().getFullYear(),0,1))/604800000)});
+            newLeads++;log('  ➕ Added (no AI): '+name);
+          }
+          continue;
+        }
         const msgText=recent.map(m=>'['+(m.fromMe?'TÔI':name)+']: '+m.text).join('\n');
         const res=await ai.messages.create({model:'claude-sonnet-4-20250514',max_tokens:250,
           system:'Sales analyst Coincu.com. JSON: {"is_lead":true/false,"name":"tên","status":"interested|waiting|no_budget|follow_up_needed|new","summary":"1 câu tiếng Việt"}\nis_lead=true nếu là dự án crypto/Web3 cần PR/media.',
@@ -243,4 +266,5 @@ app.listen(PORT,'0.0.0.0',async()=>{
   const l=await db('get','leads','','order=created_at.asc');log('📋 Leads: '+l.length);
   const s=await getSession();log('🔐 Session: '+(s?'LOADED ✅ ('+s.length+' chars)':'NOT SET ❌'));
 });
+
 
