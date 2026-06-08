@@ -117,6 +117,19 @@ app.get('/api/reports/latest',async(req,res)=>{const r=await db('get','reports',
 // LOGS
 app.get('/api/logs',(req,res)=>res.json(logs));
 
+// DEBUG ENV
+app.get('/api/debug/env',(req,res)=>{
+  res.json({
+    has_anthropic_env: !!process.env.ANTHROPIC_API_KEY,
+    anthropic_env_length: (process.env.ANTHROPIC_API_KEY||'').length,
+    anthropic_env_preview: (process.env.ANTHROPIC_API_KEY||'').slice(0,20),
+    port: process.env.PORT,
+    node_env: process.env.NODE_ENV,
+    has_lark: !!process.env.LARK_APP_SECRET,
+    has_tg_api: !!process.env.TELEGRAM_API_ID,
+  });
+});
+
 // Save API key vào Supabase
 app.post('/api/settings/apikey',async(req,res)=>{
   const key=req.body.key||'';
@@ -285,6 +298,7 @@ app.listen(PORT,'0.0.0.0',async()=>{
   const l=await db('get','leads','','order=created_at.asc');log('📋 Leads: '+l.length);
   const s=await getSession();log('🔐 Session: '+(s?'LOADED ✅ ('+s.length+' chars)':'NOT SET ❌'));
 });
+
 
 
 
