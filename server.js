@@ -53,39 +53,10 @@ async function getLarkToken(){
   return null;
 }
 async function scanLarkEmails(){
-  log('📧 Scanning Lark messages...');
-  const token=await getLarkToken();
-  if(!token){log('❌ No Lark token');return[];}
-  try{
-    // Dùng im.message API - lấy messages gần đây
-    const r=await axios.get('https://open.larksuite.com/open-apis/im/v1/messages',{
-      headers:{Authorization:'Bearer '+token},
-      params:{container_id_type:'p2p',sort_type:'ByCreateTimeDesc',page_size:20}
-    });
-    const items=r.data?.data?.items||[];
-    log('📧 Lark messages: '+items.length);
-    const results=[];
-    for(const msg of items){
-      try{
-        const body=JSON.parse(msg.body?.content||'{}');
-        const text=body.text||'';
-        if(!text)continue;
-        const senderId=msg.sender?.id||'';
-        results.push({
-          id:msg.message_id,
-          subject:'Lark message from '+senderId,
-          from:senderId,
-          fromName:senderId,
-          snippet:text.slice(0,300)
-        });
-      }catch{}
-    }
-    log('📧 '+results.length+' Lark messages processed');
-    return results;
-  }catch(e){
-    log('❌ Lark: '+e.message+' (need im:message:readonly permission)');
-    return[];
-  }
+  log('📧 Scanning Lark (skip - needs additional setup)');
+  // Lark Mail cần enterprise account + thêm permissions
+  // Tập trung vào Telegram scan trước
+  return [];
 }
 
 // LEADS API
@@ -192,18 +163,21 @@ async function runScan(){
   const session=await getSession();
   log('🔐 Session: '+(session?'YES ('+session.length+' chars) ✅':'NO ❌'));
   if(!session){log('⚠️ No session — authenticate first');return;}
-  let apiKey=process.env.ANTHROPIC_API_KEY;
-  // Load từ Supabase
-  try{
-    const r=await axios.get(SB_URL+'/rest/v1/sessions?key=eq.anthropic_key',{headers:SBH});
-    if(r.data&&r.data[0]&&r.data[0].value&&r.data[0].value.length>10){
-      apiKey=r.data[0].value;
-    }
-  }catch(e){log('Load API key error: '+e.message);}
-  log('🔑 API Key: '+(apiKey?apiKey.slice(0,20)+'... ('+apiKey.length+' chars)':'NOT SET'));
-  const ai=apiKey?new Anthropic({apiKey}):null;
-  if(!ai)log('⚠️ No API key - adding leads without AI');
-  else log('✅ AI ready');
+  // Load API key: env > Supabase
+  let apiKey = process.env.ANTHROPIC_API_KEY || '';
+  log('🔑 ENV key: '+(apiKey?apiKey.slice(0,15)+'... ('+apiKey.length+')':'EMPTY'));
+  
+  if(!apiKey || apiKey.length < 20){
+    try{
+      const r=await axios.get(SB_URL+'/rest/v1/sessions?key=eq.anthropic_key',{headers:SBH});
+      const sbKey = r.data&&r.data[0]&&r.data[0].value||'';
+      if(sbKey.length>20){ apiKey=sbKey; log('🔑 Supabase key loaded: '+apiKey.slice(0,15)+'... ('+apiKey.length+')'); }
+      else log('⚠️ Supabase key empty/short: '+sbKey.length+' chars');
+    }catch(e){log('⚠️ Load Supabase key: '+e.message);}
+  }
+  
+  const ai = apiKey && apiKey.startsWith('sk-') ? new Anthropic({apiKey}) : null;
+  log(ai ? '✅ AI ready ('+apiKey.slice(0,15)+')' : '❌ No valid API key - leads added without AI');
   let newLeads=0,updatedLeads=0;
 
   // TG scan
@@ -298,6 +272,7 @@ app.listen(PORT,'0.0.0.0',async()=>{
   const l=await db('get','leads','','order=created_at.asc');log('📋 Leads: '+l.length);
   const s=await getSession();log('🔐 Session: '+(s?'LOADED ✅ ('+s.length+' chars)':'NOT SET ❌'));
 });
+
 
 
 
