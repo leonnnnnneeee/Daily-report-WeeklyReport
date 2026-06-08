@@ -1,0 +1,46 @@
+{
+  "leads": [
+    {
+      "id": "lead_001",
+      "name": "Shardeum",
+      "website": "https://shardeum.org",
+      "sources": "Ethereum Community Events",
+      "telegram_username": "richarpalani",
+      "lark_email": "",
+      "research": "Layer 1 blockchain tương thích EVM, dynamic state sharding, phí thấp.",
+      "status": "no_budget",
+      "note": "Quan tâm post bài nhưng chưa có budget",
+      "last_contacted": "2025-06-04",
+      "last_scanned": null,
+      "week": 23
+    },
+    {
+      "id": "lead_002",
+      "name": "Cryptum",
+      "website": "https://cryptum.co.in",
+      "sources": "JANIBASE WEB3 HUB",
+      "telegram_username": "Cryptum123",
+      "lark_email": "",
+      "research": "Agency marketing, PR cho dự án crypto/Web3.",
+      "status": "waiting",
+      "note": "Đang bước đầu discuss giới thiệu dịch vụ CMC",
+      "last_contacted": "2025-06-04",
+      "last_scanned": null,
+      "week": 23
+    },
+    {
+      "id": "lead_003",
+      "name": "FundOutreach",
+      "website": "https://fundoutreach.com",
+      "sources": "The Best Event with Tobi",
+      "telegram_username": "alicealieva",
+      "lark_email": "",
+      "research": "Nền tảng kết nối startup với nhà đầu tư VC.",
+      "status": "follow_up_needed",
+      "note": "Đã trao đổi về hợp tác lead generation",
+      "last_contacted": "2025-06-03",
+      "last_scanned": null,
+      "week": 23
+    }
+  ]
+}
