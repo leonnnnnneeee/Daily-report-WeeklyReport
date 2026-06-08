@@ -198,15 +198,18 @@ async function runScan(){
         const recent=msgs.filter(m=>m.date>cutoff&&m.message).map(m=>({fromMe:m.out,text:m.message}));
         if(!recent.length)continue;
         log('  💬 '+name+' (@'+username+'): '+recent.length+' msgs');
-        // Nếu không có AI, vẫn thêm lead với status 'new'
-        if(!ai){
-          const ex=await db('get','leads','','telegram_username=eq.'+username);
-          if(!ex||!ex.length){
-            await db('post','leads',{id:'lead_tg_'+entity.id,name:name,telegram_username:username,status:'new',note:'Auto-detected from DM (no AI analysis)',sources:'Telegram DM',website:'',lark_email:'',research:'',last_contacted:new Date().toISOString().slice(0,10),last_scanned:new Date().toISOString(),week:Math.ceil((new Date()-new Date(new Date().getFullYear(),0,1))/604800000)});
-            newLeads++;log('  ➕ Added (no AI): '+name);
-          }
-          continue;
+        // Luôn thêm lead dù có AI hay không
+        const exCheck=await db('get','leads','','telegram_username=eq.'+username);
+        if(!exCheck||!exCheck.length){
+          await db('post','leads',{id:'lead_tg_'+entity.id,name:name,telegram_username:username,
+            status:'new',note:recent[recent.length-1]?.text?.slice(0,100)||'',
+            sources:'Telegram DM',website:'',lark_email:'',research:'',
+            last_contacted:new Date().toISOString().slice(0,10),
+            last_scanned:new Date().toISOString(),
+            week:Math.ceil((new Date()-new Date(new Date().getFullYear(),0,1))/604800000)});
+          newLeads++;log('  ➕ Lead added: '+name);
         }
+        if(!ai) continue;
         const msgText=recent.map(m=>'['+(m.fromMe?'TÔI':name)+']: '+m.text).join('\n');
         const res=await ai.messages.create({model:'claude-sonnet-4-20250514',max_tokens:250,
           system:'Sales analyst Coincu.com. JSON: {"is_lead":true/false,"name":"tên","status":"interested|waiting|no_budget|follow_up_needed|new","summary":"1 câu tiếng Việt"}\nis_lead=true nếu là dự án crypto/Web3 cần PR/media.',
@@ -272,6 +275,7 @@ app.listen(PORT,'0.0.0.0',async()=>{
   const l=await db('get','leads','','order=created_at.asc');log('📋 Leads: '+l.length);
   const s=await getSession();log('🔐 Session: '+(s?'LOADED ✅ ('+s.length+' chars)':'NOT SET ❌'));
 });
+
 
 
 
