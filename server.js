@@ -5,11 +5,10 @@ const fs = require('fs');
 const cron = require('node-cron');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 8080;  // Railway tự set PORT
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'dist')));
 
-// Load modules
 let scanner, leadsDb, tgAuth;
 try { leadsDb = require('./src/leads-db'); } catch(e) { console.warn('[WARN] leads-db:', e.message); }
 try { scanner = require('./src/scanner'); } catch(e) { console.warn('[WARN] scanner:', e.message); }
@@ -26,7 +25,6 @@ function saveLeads(leads) {
   fs.writeFileSync(f, JSON.stringify({ leads }, null, 2));
 }
 
-// ── LEADS API ──────────────────────────────────────
 app.get('/api/leads', (req, res) => res.json(getLeads()));
 
 app.post('/api/leads', (req, res) => {
@@ -73,32 +71,28 @@ app.get('/api/stats', (req, res) => {
   res.json({ total: leads.length, counts });
 });
 
-// ── SCAN API ───────────────────────────────────────
 app.post('/api/scan', async (req, res) => {
-  if (!scanner) return res.json({ ok: false, message: 'Scanner chưa sẵn sàng — kiểm tra Railway Variables' });
+  if (!scanner) return res.json({ ok: false, message: 'Scanner chưa sẵn sàng' });
   res.json({ ok: true, message: 'Scan đang chạy...' });
   scanner.runScan().catch(console.error);
 });
 
-// ── TELEGRAM AUTH API ──────────────────────────────
 app.post('/api/auth/send-otp', async (req, res) => {
-  if (!tgAuth) return res.json({ ok: false, message: 'Telegram module không load được' });
+  if (!tgAuth) return res.json({ ok: false, message: 'Telegram module lỗi' });
   try {
     await tgAuth.sendOtp(req.body.phone);
     res.json({ ok: true });
   } catch(e) {
-    console.error('[AUTH] sendOtp error:', e.message);
     res.json({ ok: false, message: e.message });
   }
 });
 
 app.post('/api/auth/verify-otp', async (req, res) => {
-  if (!tgAuth) return res.json({ ok: false, message: 'Telegram module không load được' });
+  if (!tgAuth) return res.json({ ok: false, message: 'Telegram module lỗi' });
   try {
-    const result = await tgAuth.verifyOtp(req.body.phone, req.body.code);
-    res.json({ ok: true, message: 'Session saved' });
+    await tgAuth.verifyOtp(req.body.phone, req.body.code);
+    res.json({ ok: true });
   } catch(e) {
-    console.error('[AUTH] verifyOtp error:', e.message);
     res.json({ ok: false, message: e.message });
   }
 });
@@ -108,13 +102,10 @@ app.get('/api/auth/status', (req, res) => {
   res.json({ connected: !!session });
 });
 
-// ── SERVE REACT ────────────────────────────────────
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'dist', 'index.html')));
 
-// ── CRON mỗi 2 giờ ────────────────────────────────
 if (scanner) {
   cron.schedule('0 */2 * * *', () => {
-    console.log(`[CRON] ${new Date().toLocaleString('vi-VN')} — scanning...`);
     scanner.runScan().catch(console.error);
   }, { timezone: 'Asia/Ho_Chi_Minh' });
 }
@@ -123,5 +114,7 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`\n🚀 Coincu Sales v2.0 — port ${PORT}`);
   console.log(`📋 Leads: ${getLeads().length}`);
   console.log(`🤖 Scanner: ${scanner ? 'ON' : 'OFF'}`);
-  console.log(`📱 TG Auth: ${tgAuth ? 'ON' : 'OFF'}\n`);
+  console.log(`📱 TG Auth: ${tgAuth ? 'ON' : 'OFF'}`);
+  console.log(`TELEGRAM_API_ID: ${process.env.TELEGRAM_API_ID || 'NOT SET'}`);
+  console.log(`LARK_APP_ID: ${process.env.LARK_APP_ID || 'NOT SET'}\n`);
 });
