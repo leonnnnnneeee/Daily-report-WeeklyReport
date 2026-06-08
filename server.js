@@ -224,34 +224,42 @@ is_lead=true nếu họ là dự án crypto/Web3 tiềm năng cần PR/media ser
 async function generateAndSaveReport(ai, scanResults, newLeads, updatedLeads) {
   const leads=await db('get','leads','','order=updated_at.desc');
   if (!leads.length) return;
-  log('📋 Generating daily report...');
+  log('📋 Generating standup report...');
 
-  const date=new Date().toLocaleDateString('vi-VN',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
-  const leadsText=leads.map(l=>`- ${l.name}: ${l.status} — ${l.note}`).join('\n');
+  const today=new Date();
+  const d=today.getDate(), m=today.getMonth()+1;
+  const dateStr=d+'-'+m;
+
+  const accomplished=leads.filter(l=>l.status!=='new');
+  const followUps=leads.filter(l=>l.status==='follow_up_needed'||l.status==='waiting');
+  const leadsDetail=accomplished.map(l=>{
+    const note={interested:'quan tâm, đang discuss',waiting:'đã phản hồi, đang đợi discuss thêm',no_budget:'quan tâm nhưng chưa có budget',follow_up_needed:'cần follow up lại',closed_won:'đã chốt deal',closed_lost:'không quan tâm'}[l.status]||l.status;
+    return '- '+l.name+': '+(l.note||note);
+  }).join('\n');
+
+  const prompt='Tạo standup note cho ngày '+dateStr+' theo ĐÚNG format sau:\n\n'+
+    'E gửi Standup note ngày '+dateStr+':\n'+
+    '1. What did you accomplish yesterday?\n'+
+    '- Reach out các leads từ Telegram:\n'+
+    (leadsDetail||'- Không có hoạt động mới')+
+    (newLeads>0?'\n- Tìm được '+newLeads+' leads mới từ Telegram scan':'')+
+    '\n2. What are you planning to do today?\n'+
+    '- Reach out các lead trong Telegram\n'+
+    '- Tìm thêm lead mới từ sản phẩm\n'+
+    (followUps.length>0?'- Follow up: '+followUps.map(l=>l.name).join(', ')+'\n':'')+
+    '- Collect lại date email gửi email remind\n\n'+
+    'Chỉ viết đúng format trên, dùng dữ liệu thực tế, tiếng Việt ngắn gọn.';
 
   try {
     const res=await ai.messages.create({
-      model:'claude-sonnet-4-20250514', max_tokens:1000,
-      system:'Tạo daily standup report bằng tiếng Việt cho sales team Coincu.com. Format rõ ràng với emoji.',
-      messages:[{role:'user',content:`Ngày: ${date}
-Leads scan hôm nay: ${leads.length} total, ${newLeads} new, ${updatedLeads} updated
-
-Danh sách leads:
-${leadsText}
-
-Tạo report với:
-1. What did you accomplish? (leads đã contact)
-2. What are you planning? (next actions)  
-3. Follow up cần làm hôm nay`}]
+      model:'claude-sonnet-4-20250514', max_tokens:600,
+      system:'Bạn là sales assistant Coincu.com. Tạo standup note ĐÚNG format được yêu cầu, không thêm gì khác ngoài format.',
+      messages:[{role:'user',content:prompt}]
     });
-
-    const content=res.content[0].text;
-    await db('post','reports',{
-      id:'report_'+Date.now(),
-      date:new Date().toISOString().slice(0,10),
-      content, leads_scanned:leads.length, new_leads:newLeads, updated_leads:updatedLeads
-    });
-    log('✅ Report saved to DB!');
+    const reportContent=res.content[0].text;
+    await db('post','reports',{id:'report_'+Date.now(),date:today.toISOString().slice(0,10),content:reportContent,leads_scanned:leads.length,new_leads:newLeads,updated_leads:updatedLeads});
+    log('✅ Standup report saved!');
+    log('📊 Preview: '+reportContent.slice(0,150));
   } catch(e) { log('❌ Report: '+e.message); }
 }
 
@@ -264,3 +272,4 @@ app.listen(PORT,'0.0.0.0',()=>{
   log('✅ Ready on port '+PORT);
   db('get','leads','','order=created_at.asc').then(l=>log('📋 Leads: '+l.length));
 });
+
