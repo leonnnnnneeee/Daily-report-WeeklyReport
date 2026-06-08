@@ -57,18 +57,27 @@ async function scanLarkEmails(){
   const token=await getLarkToken();
   if(!token){log('❌ No Lark token');return[];}
   try{
-    const r=await axios.get('https://open.larksuite.com/open-apis/mail/v1/mailboxes/me/messages',{headers:{Authorization:'Bearer '+token},params:{page_size:50}});
+    // Lấy user email address trước
+    const meRes=await axios.get('https://open.larksuite.com/open-apis/authen/v1/user_info',{headers:{Authorization:'Bearer '+token}});
+    const userEmail=meRes.data?.data?.email||meRes.data?.data?.enterprise_email||'';
+    log('📧 User email: '+userEmail);
+    if(!userEmail){log('⚠️ Cannot get user email - check Lark permissions');return[];}
+
+    // Dùng email address làm mailbox ID
+    const mailboxId=encodeURIComponent(userEmail);
+    const r=await axios.get('https://open.larksuite.com/open-apis/mail/v1/mailboxes/'+mailboxId+'/messages?page_size=50',{headers:{Authorization:'Bearer '+token}});
     const items=r.data?.data?.items||[];
     const since=Date.now()-72*3600*1000;
     const results=[];
     for(const msg of items){
-      if(msg.internal_date<since)continue;
+      if(msg.internal_date&&parseInt(msg.internal_date)<since)continue;
       try{
-        const d=(await axios.get('https://open.larksuite.com/open-apis/mail/v1/mailboxes/me/messages/'+msg.message_id,{headers:{Authorization:'Bearer '+token}})).data?.data;
-        if(d)results.push({id:msg.message_id,subject:d.subject||'',from:d.from?.mail_address||'',fromName:d.from?.name||'',snippet:(d.body_plain||'').slice(0,300)});
+        const detail=await axios.get('https://open.larksuite.com/open-apis/mail/v1/mailboxes/'+mailboxId+'/messages/'+msg.message_id,{headers:{Authorization:'Bearer '+token}});
+        const d=detail.data?.data;
+        if(d)results.push({id:msg.message_id,subject:d.subject||'',from:d.from?.mail_address||'',fromName:d.from?.name||'',snippet:(d.body_plain||d.snippet||'').slice(0,300)});
       }catch{}
     }
-    log('📧 '+results.length+' emails in 72h');
+    log('📧 '+results.length+' emails found');
     return results;
   }catch(e){log('❌ Lark scan: '+e.message);return[];}
 }
@@ -266,5 +275,6 @@ app.listen(PORT,'0.0.0.0',async()=>{
   const l=await db('get','leads','','order=created_at.asc');log('📋 Leads: '+l.length);
   const s=await getSession();log('🔐 Session: '+(s?'LOADED ✅ ('+s.length+' chars)':'NOT SET ❌'));
 });
+
 
 
