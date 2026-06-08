@@ -14,6 +14,7 @@ const B = {
   p:{background:'#111',color:'#fff',border:'none',padding:'9px 20px',borderRadius:8,fontSize:13,fontWeight:600,cursor:'pointer'},
   s:{background:'#fff',color:'#374151',border:'1px solid #D1D5DB',padding:'8px 16px',borderRadius:8,fontSize:13,cursor:'pointer'},
   g:{background:'transparent',color:'#6B7280',border:'none',padding:'6px 14px',borderRadius:7,fontSize:13,fontWeight:500,cursor:'pointer'},
+  r:{background:'#FEF2F2',color:'#DC2626',border:'1px solid #FCA5A5',padding:'5px 12px',borderRadius:6,fontSize:12,cursor:'pointer'},
 }
 const inp = {width:'100%',padding:'8px 12px',border:'1px solid #D1D5DB',borderRadius:8,fontSize:13,background:'#F9FAFB'}
 
@@ -43,18 +44,21 @@ export default function App() {
   const [newLead,setNewLead]=useState({name:'',website:'',sources:'',telegram_username:'',lark_email:'',research:'',note:'',status:'new'})
 
   const loadLeads=useCallback(async()=>{
-    try{const r=await fetch('/api/leads');setLeads(await r.json())}catch{}
+    try{const r=await fetch('/api/leads');const d=await r.json();if(Array.isArray(d))setLeads(d)}catch{}
   },[])
 
   const loadReports=useCallback(async()=>{
-    try{const r=await fetch('/api/reports');const data=await r.json();setReports(data);if(data.length>0&&!selectedReport)setSelectedReport(data[0])}catch{}
+    try{
+      const r=await fetch('/api/reports');const d=await r.json();
+      if(Array.isArray(d)){setReports(d);if(d.length>0)setSelectedReport(prev=>prev||d[0])}
+    }catch{}
   },[])
 
-  useEffect(()=>{loadLeads();loadReports()},[loadLeads,loadReports])
+  useEffect(()=>{loadLeads();loadReports()},[])
   useEffect(()=>{
     const t=setInterval(()=>{loadLeads();loadReports()},10000)
     return()=>clearInterval(t)
-  },[loadLeads,loadReports])
+  },[])
 
   const counts=Object.fromEntries(Object.keys(STATUS).map(s=>[s,leads.filter(l=>l.status===s).length]))
   const filtered=filterStatus==='all'?leads:leads.filter(l=>l.status===filterStatus)
@@ -73,6 +77,13 @@ export default function App() {
     await fetch('/api/leads/'+id,{method:'DELETE'});await loadLeads()
   }
 
+  async function deleteReport(id){
+    if(!confirm('Xóa report này?'))return
+    await fetch('/api/reports/'+id,{method:'DELETE'})
+    await loadReports()
+    setSelectedReport(null)
+  }
+
   async function updateStatus(id,status){
     await fetch('/api/leads/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({status})})
     await loadLeads()
@@ -80,12 +91,10 @@ export default function App() {
 
   return (
     <div style={{minHeight:'100vh',background:'#F9FAFB',fontFamily:"'DM Sans','Helvetica Neue',sans-serif"}}>
-      {/* Header */}
       <div style={{background:'#111',color:'#fff',padding:'0 24px',height:56,display:'flex',alignItems:'center',justifyContent:'space-between',position:'sticky',top:0,zIndex:10}}>
         <div style={{display:'flex',alignItems:'center',gap:8}}>
           <div style={{width:30,height:30,background:'#fff',borderRadius:7,display:'flex',alignItems:'center',justifyContent:'center',fontSize:16}}>⚡</div>
           <span style={{fontWeight:700,fontSize:15}}>Coincu Sales</span>
-          <span style={{background:'#333',fontSize:11,padding:'2px 8px',borderRadius:4}}>v7</span>
         </div>
         <div style={{display:'flex',gap:2}}>
           {TABS.map(t=>(
@@ -94,7 +103,7 @@ export default function App() {
             </button>
           ))}
         </div>
-        <div style={{fontSize:12,color:'#666'}}>auto-refresh 10s</div>
+        <div style={{fontSize:12,color:'#555'}}>auto-refresh 10s</div>
       </div>
 
       <div style={{padding:24,maxWidth:1080,margin:'0 auto'}}>
@@ -102,9 +111,12 @@ export default function App() {
         {/* DASHBOARD */}
         {tab==='Dashboard'&&(
           <div>
-            <h2 style={{fontSize:20,fontWeight:700,marginBottom:20}}>Dashboard</h2>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
+              <h2 style={{fontSize:20,fontWeight:700}}>Dashboard</h2>
+              <span style={{fontSize:12,color:'#9CA3AF'}}>{leads.length} leads • {reports.length} reports</span>
+            </div>
             <div style={{display:'flex',gap:12,marginBottom:22,flexWrap:'wrap'}}>
-              <Stat label="Total Leads" value={leads.length}/>
+              <Stat label="Total" value={leads.length}/>
               <Stat label="Interested" value={counts.interested||0} color="#059669"/>
               <Stat label="Waiting" value={counts.waiting||0} color="#D97706"/>
               <Stat label="No Budget" value={counts.no_budget||0} color="#DC2626"/>
@@ -112,25 +124,30 @@ export default function App() {
               <Stat label="Won" value={counts.closed_won||0} color="#065F46"/>
             </div>
 
-            {/* Latest report preview */}
             {reports.length>0&&(
               <div style={{background:'#EDE9FE',border:'1px solid #C4B5FD',borderRadius:12,padding:16,marginBottom:20,cursor:'pointer'}} onClick={()=>setTab('Daily Report')}>
-                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
-                  <div style={{fontWeight:600,color:'#5B21B6',fontSize:14}}>📊 Latest Daily Report</div>
-                  <div style={{fontSize:12,color:'#7C3AED'}}>{reports[0].date} • {reports[0].new_leads} new leads</div>
+                <div style={{display:'flex',justifyContent:'space-between',marginBottom:6}}>
+                  <span style={{fontWeight:600,color:'#5B21B6',fontSize:14}}>📊 Latest Report — {reports[0].date}</span>
+                  <span style={{fontSize:12,color:'#7C3AED'}}>{reports[0].new_leads} new • {reports[0].updated_leads} updated</span>
                 </div>
                 <div style={{fontSize:12,color:'#374151',whiteSpace:'pre-wrap',maxHeight:60,overflow:'hidden'}}>{reports[0].content.slice(0,200)}...</div>
-                <div style={{fontSize:12,color:'#7C3AED',marginTop:6}}>Xem full report →</div>
+                <div style={{fontSize:12,color:'#7C3AED',marginTop:6}}>Xem full →</div>
               </div>
             )}
 
             {followUps.length>0&&(
               <div style={{background:'#FFF7ED',border:'1px solid #FED7AA',borderRadius:12,padding:16,marginBottom:20}}>
-                <div style={{fontWeight:600,color:'#92400E',marginBottom:10,fontSize:14}}>🔁 Follow up hôm nay ({followUps.length})</div>
+                <div style={{fontWeight:600,color:'#92400E',marginBottom:10,fontSize:14}}>🔁 Follow up ({followUps.length})</div>
                 {followUps.map(l=>(
                   <div key={l.id} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'7px 0',borderBottom:'1px solid #FED7AA'}}>
-                    <div><span style={{fontWeight:600,fontSize:13}}>{l.name}</span><span style={{color:'#6B7280',fontSize:12,marginLeft:10}}>{l.note}</span></div>
-                    <Badge status={l.status}/>
+                    <div>
+                      <span style={{fontWeight:600,fontSize:13}}>{l.name}</span>
+                      <span style={{color:'#6B7280',fontSize:12,marginLeft:10}}>{l.note?.slice(0,80)}</span>
+                    </div>
+                    <div style={{display:'flex',gap:8,alignItems:'center'}}>
+                      <Badge status={l.status}/>
+                      <span style={{fontSize:11,color:'#9CA3AF'}}>{l.telegram_username?'📱':'📧'}</span>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -138,14 +155,15 @@ export default function App() {
 
             <div style={{background:'#fff',border:'1px solid #E5E7EB',borderRadius:12,overflow:'hidden'}}>
               <div style={{padding:'14px 18px',borderBottom:'1px solid #E5E7EB',fontWeight:600,fontSize:14}}>All Leads</div>
-              {leads.length===0&&<div style={{padding:24,color:'#9CA3AF',textAlign:'center',fontSize:13}}>Chưa có leads — bấm Scan Now để tự quét từ Telegram</div>}
+              {leads.length===0&&<div style={{padding:24,color:'#9CA3AF',textAlign:'center',fontSize:13}}>Chưa có leads — bấm Auto Scan → Scan Now</div>}
               {leads.map(l=>(
                 <div key={l.id} style={{display:'flex',alignItems:'center',gap:12,padding:'11px 18px',borderBottom:'1px solid #F3F4F6'}}>
-                  <div style={{width:32,height:32,background:'#F3F4F6',borderRadius:8,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700,fontSize:13,flexShrink:0}}>{l.name[0]}</div>
+                  <div style={{width:32,height:32,background:'#F3F4F6',borderRadius:8,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700,fontSize:13,flexShrink:0}}>{l.name?.[0]||'?'}</div>
                   <div style={{flex:1,minWidth:0}}>
                     <div style={{fontWeight:600,fontSize:13}}>{l.name}</div>
                     <div style={{fontSize:12,color:'#6B7280',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{l.note}</div>
                   </div>
+                  <span style={{fontSize:11,color:'#9CA3AF'}}>{l.telegram_username?'📱 @'+l.telegram_username:l.lark_email?'📧 '+l.lark_email:''}</span>
                   <Badge status={l.status}/>
                   <div style={{fontSize:11,color:'#9CA3AF',flexShrink:0}}>{l.last_contacted}</div>
                 </div>
@@ -164,7 +182,7 @@ export default function App() {
                 {Object.entries(STATUS).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}
               </select>
             </div>
-            {filtered.length===0&&<div style={{padding:40,color:'#9CA3AF',textAlign:'center',background:'#fff',borderRadius:12,border:'1px solid #E5E7EB'}}>Không có leads — bấm Auto Scan → Scan Now để tự quét Telegram DM</div>}
+            {filtered.length===0&&<div style={{padding:40,color:'#9CA3AF',textAlign:'center',background:'#fff',borderRadius:12,border:'1px solid #E5E7EB'}}>Không có leads — bấm Auto Scan → Scan Now</div>}
             {filtered.map(l=>(
               <div key={l.id} style={{background:'#fff',border:'1px solid #E5E7EB',borderRadius:12,padding:'14px 18px',marginBottom:10}}>
                 <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:12}}>
@@ -172,21 +190,22 @@ export default function App() {
                     <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:5}}>
                       <span style={{fontWeight:700,fontSize:14}}>{l.name}</span>
                       <Badge status={l.status}/>
-                      {l.last_scanned&&<span style={{fontSize:11,color:'#9CA3AF'}}>🤖 AI scanned</span>}
+                      {l.sources&&<span style={{fontSize:11,background:'#F3F4F6',padding:'2px 8px',borderRadius:4,color:'#6B7280'}}>{l.sources}</span>}
                     </div>
-                    <div style={{fontSize:13,color:'#6B7280',marginBottom:6,lineHeight:1.5}}>{l.research}</div>
-                    <div style={{fontSize:12,background:'#F9FAFB',padding:'4px 10px',borderRadius:6,display:'inline-block',marginBottom:6}}>📝 {l.note}</div>
+                    {l.research&&<div style={{fontSize:13,color:'#6B7280',marginBottom:6,lineHeight:1.5}}>{l.research}</div>}
+                    {l.note&&<div style={{fontSize:12,background:'#F9FAFB',padding:'4px 10px',borderRadius:6,display:'inline-block',marginBottom:6}}>📝 {l.note}</div>}
                     <div style={{fontSize:12,color:'#9CA3AF',display:'flex',gap:12,flexWrap:'wrap'}}>
                       {l.telegram_username&&<span>📱 @{l.telegram_username}</span>}
                       {l.lark_email&&<span>📧 {l.lark_email}</span>}
                       {l.website&&<a href={l.website} target="_blank" rel="noreferrer" style={{color:'#6366F1'}}>🌐</a>}
+                      <span>Last: {l.last_contacted}</span>
                     </div>
                   </div>
                   <div style={{display:'flex',flexDirection:'column',gap:6,flexShrink:0}}>
                     <select value={l.status} onChange={e=>updateStatus(l.id,e.target.value)} style={{...inp,width:130,fontSize:12,padding:'5px 8px'}}>
                       {Object.entries(STATUS).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}
                     </select>
-                    <button onClick={()=>deleteLead(l.id)} style={{...B.s,fontSize:11,padding:'4px 10px',color:'#DC2626',borderColor:'#FCA5A5'}}>🗑 Xóa</button>
+                    <button onClick={()=>deleteLead(l.id)} style={B.r}>🗑 Xóa</button>
                   </div>
                 </div>
               </div>
@@ -198,14 +217,14 @@ export default function App() {
         {tab==='Daily Report'&&(
           <div>
             <h2 style={{fontSize:20,fontWeight:700,marginBottom:6}}>Daily Reports</h2>
-            <p style={{color:'#6B7280',fontSize:13,marginBottom:20}}>AI tự generate sau mỗi lần scan • tự động mỗi 8:00 sáng</p>
+            <p style={{color:'#6B7280',fontSize:13,marginBottom:20}}>Tổng hợp Telegram DM + Lark Email • Tự generate sau mỗi scan • 8:00 sáng hàng ngày</p>
 
             {reports.length===0?(
               <div style={{background:'#fff',border:'1px solid #E5E7EB',borderRadius:12,padding:40,textAlign:'center',color:'#9CA3AF'}}>
-                Chưa có report nào — bấm <strong>Auto Scan → Scan Now</strong> để generate report đầu tiên
+                Chưa có report — bấm <strong>Auto Scan → Scan Now</strong>
               </div>
             ):(
-              <div style={{display:'grid',gridTemplateColumns:'260px 1fr',gap:16}}>
+              <div style={{display:'grid',gridTemplateColumns:'240px 1fr',gap:16}}>
                 {/* Report list */}
                 <div style={{background:'#fff',border:'1px solid #E5E7EB',borderRadius:12,overflow:'hidden',height:'fit-content'}}>
                   <div style={{padding:'12px 16px',borderBottom:'1px solid #E5E7EB',fontWeight:600,fontSize:13}}>History ({reports.length})</div>
@@ -214,7 +233,7 @@ export default function App() {
                       style={{padding:'12px 16px',borderBottom:'1px solid #F3F4F6',cursor:'pointer',background:selectedReport?.id===r.id?'#F3F4F6':'#fff'}}>
                       <div style={{fontWeight:600,fontSize:13}}>{r.date}</div>
                       <div style={{fontSize:11,color:'#6B7280',marginTop:2}}>
-                        {r.new_leads} new • {r.updated_leads} updated • {r.leads_scanned} total
+                        📱{r.new_leads||0} new • 🔄{r.updated_leads||0} updated
                       </div>
                     </div>
                   ))}
@@ -227,11 +246,14 @@ export default function App() {
                       <div>
                         <div style={{fontWeight:700,fontSize:16}}>{selectedReport.date}</div>
                         <div style={{fontSize:12,color:'#6B7280',marginTop:2}}>
-                          {selectedReport.new_leads} leads mới • {selectedReport.updated_leads} cập nhật • {selectedReport.leads_scanned} total scanned
+                          📱 Telegram + 📧 Lark Email • {selectedReport.leads_scanned} leads scanned
                         </div>
                       </div>
-                      <button onClick={()=>{navigator.clipboard.writeText(selectedReport.content);setCopied(true);setTimeout(()=>setCopied(false),2000)}}
-                        style={{...B.s,fontSize:12,padding:'6px 14px'}}>{copied?'✅ Copied':'📋 Copy'}</button>
+                      <div style={{display:'flex',gap:8}}>
+                        <button onClick={()=>{navigator.clipboard.writeText(selectedReport.content);setCopied(true);setTimeout(()=>setCopied(false),2000)}}
+                          style={{...B.s,fontSize:12,padding:'6px 14px'}}>{copied?'✅ Copied':'📋 Copy'}</button>
+                        <button onClick={()=>deleteReport(selectedReport.id)} style={B.r}>🗑 Xóa</button>
+                      </div>
                     </div>
                     <div style={{background:'#F9FAFB',borderRadius:8,padding:16,fontFamily:'monospace',fontSize:13,whiteSpace:'pre-wrap',lineHeight:1.8,color:'#111',maxHeight:500,overflowY:'auto'}}>
                       {selectedReport.content}
@@ -249,8 +271,8 @@ export default function App() {
         {/* ADD LEAD */}
         {tab==='Add Lead'&&(
           <div>
-            <h2 style={{fontSize:20,fontWeight:700,marginBottom:20}}>Add Lead Thủ Công</h2>
-            <p style={{color:'#6B7280',fontSize:13,marginBottom:16}}>Hoặc dùng <strong>Auto Scan</strong> để tự quét từ Telegram DM</p>
+            <h2 style={{fontSize:20,fontWeight:700,marginBottom:6}}>Add Lead Thủ Công</h2>
+            <p style={{color:'#6B7280',fontSize:13,marginBottom:16}}>Hoặc dùng <strong>Auto Scan</strong> để tự quét từ Telegram + Email</p>
             <div style={{background:'#fff',border:'1px solid #E5E7EB',borderRadius:12,padding:20}}>
               <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:10}}>
                 {[['name','Tên dự án *'],['website','Website'],['sources','Nguồn'],['telegram_username','Telegram username (không có @)'],['lark_email','Lark email'],['note','Ghi chú']].map(([k,p])=>(
