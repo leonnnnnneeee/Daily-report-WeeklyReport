@@ -53,33 +53,39 @@ async function getLarkToken(){
   return null;
 }
 async function scanLarkEmails(){
-  log('📧 Scanning Lark Mail...');
+  log('📧 Scanning Lark messages...');
   const token=await getLarkToken();
   if(!token){log('❌ No Lark token');return[];}
   try{
-    // Lấy user email address trước
-    const meRes=await axios.get('https://open.larksuite.com/open-apis/authen/v1/user_info',{headers:{Authorization:'Bearer '+token}});
-    const userEmail=meRes.data?.data?.email||meRes.data?.data?.enterprise_email||'';
-    log('📧 User email: '+userEmail);
-    if(!userEmail){log('⚠️ Cannot get user email - check Lark permissions');return[];}
-
-    // Dùng email address làm mailbox ID
-    const mailboxId=encodeURIComponent(userEmail);
-    const r=await axios.get('https://open.larksuite.com/open-apis/mail/v1/mailboxes/'+mailboxId+'/messages?page_size=50',{headers:{Authorization:'Bearer '+token}});
+    // Dùng im.message API - lấy messages gần đây
+    const r=await axios.get('https://open.larksuite.com/open-apis/im/v1/messages',{
+      headers:{Authorization:'Bearer '+token},
+      params:{container_id_type:'p2p',sort_type:'ByCreateTimeDesc',page_size:20}
+    });
     const items=r.data?.data?.items||[];
-    const since=Date.now()-72*3600*1000;
+    log('📧 Lark messages: '+items.length);
     const results=[];
     for(const msg of items){
-      if(msg.internal_date&&parseInt(msg.internal_date)<since)continue;
       try{
-        const detail=await axios.get('https://open.larksuite.com/open-apis/mail/v1/mailboxes/'+mailboxId+'/messages/'+msg.message_id,{headers:{Authorization:'Bearer '+token}});
-        const d=detail.data?.data;
-        if(d)results.push({id:msg.message_id,subject:d.subject||'',from:d.from?.mail_address||'',fromName:d.from?.name||'',snippet:(d.body_plain||d.snippet||'').slice(0,300)});
+        const body=JSON.parse(msg.body?.content||'{}');
+        const text=body.text||'';
+        if(!text)continue;
+        const senderId=msg.sender?.id||'';
+        results.push({
+          id:msg.message_id,
+          subject:'Lark message from '+senderId,
+          from:senderId,
+          fromName:senderId,
+          snippet:text.slice(0,300)
+        });
       }catch{}
     }
-    log('📧 '+results.length+' emails found');
+    log('📧 '+results.length+' Lark messages processed');
     return results;
-  }catch(e){log('❌ Lark scan: '+e.message);return[];}
+  }catch(e){
+    log('❌ Lark: '+e.message+' (need im:message:readonly permission)');
+    return[];
+  }
 }
 
 // LEADS API
@@ -174,12 +180,16 @@ async function runScan(){
   log('🔐 Session: '+(session?'YES ('+session.length+' chars) ✅':'NO ❌'));
   if(!session){log('⚠️ No session — authenticate first');return;}
   let apiKey=process.env.ANTHROPIC_API_KEY;
-  // Thử load từ Supabase nếu không có trong env
-  if(!apiKey){
-    try{const r=await axios.get(SB_URL+'/rest/v1/sessions?key=eq.anthropic_key',{headers:SBH});if(r.data&&r.data[0]&&r.data[0].value)apiKey=r.data[0].value;}catch(e){}
-  }
+  // Load từ Supabase
+  try{
+    const r=await axios.get(SB_URL+'/rest/v1/sessions?key=eq.anthropic_key',{headers:SBH});
+    if(r.data&&r.data[0]&&r.data[0].value&&r.data[0].value.length>10){
+      apiKey=r.data[0].value;
+    }
+  }catch(e){log('Load API key error: '+e.message);}
+  log('🔑 API Key: '+(apiKey?apiKey.slice(0,20)+'... ('+apiKey.length+' chars)':'NOT SET'));
   const ai=apiKey?new Anthropic({apiKey}):null;
-  if(!ai)log('⚠️ No ANTHROPIC_API_KEY - will add leads without AI analysis');
+  if(!ai)log('⚠️ No API key - adding leads without AI');
   else log('✅ AI ready');
   let newLeads=0,updatedLeads=0;
 
@@ -275,6 +285,7 @@ app.listen(PORT,'0.0.0.0',async()=>{
   const l=await db('get','leads','','order=created_at.asc');log('📋 Leads: '+l.length);
   const s=await getSession();log('🔐 Session: '+(s?'LOADED ✅ ('+s.length+' chars)':'NOT SET ❌'));
 });
+
 
 
 
