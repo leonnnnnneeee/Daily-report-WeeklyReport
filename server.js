@@ -5,26 +5,20 @@ const fs = require('fs');
 const cron = require('node-cron');
 
 const app = express();
-const PORT = process.env.PORT || 8080;
+const PORT = process.env.PORT || 3000;
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'dist')));
 
-// In-memory log buffer
-const logs = [];
-function log(msg) {
-  const line = `[${new Date().toLocaleTimeString('vi-VN')}] ${msg}`;
-  console.log(line);
-  logs.push(line);
-  if (logs.length > 200) logs.shift();
-}
-
-let tgAuth;
-try { tgAuth = require('./src/tg-auth'); log('✅ tg-auth loaded'); }
-catch(e) { log('❌ tg-auth: ' + e.message); }
+// Load modules
+let scanner, leadsDb, tgAuth;
+try { leadsDb = require('./src/leads-db'); } catch(e) { console.warn('[WARN] leads-db:', e.message); }
+try { scanner = require('./src/scanner'); } catch(e) { console.warn('[WARN] scanner:', e.message); }
+try { tgAuth = require('./src/tg-auth'); } catch(e) { console.warn('[WARN] tg-auth:', e.message); }
 
 function getLeads() {
+  if (leadsDb) return leadsDb.getLeads();
   const f = path.join(__dirname, 'data/leads.json');
-  return fs.existsSync(f) ? JSON.parse(fs.readFileSync(f)).leads || [] : [];
+  return fs.existsSync(f) ? JSON.parse(fs.readFileSync(f)).leads : [];
 }
 function saveLeads(leads) {
   const f = path.join(__dirname, 'data/leads.json');
@@ -79,39 +73,32 @@ app.get('/api/stats', (req, res) => {
   res.json({ total: leads.length, counts });
 });
 
-// ── LOG API ────────────────────────────────────────
-app.get('/api/logs', (req, res) => res.json(logs));
-
 // ── SCAN API ───────────────────────────────────────
 app.post('/api/scan', async (req, res) => {
-  log('🔍 Manual scan triggered');
+  if (!scanner) return res.json({ ok: false, message: 'Scanner chưa sẵn sàng — kiểm tra Railway Variables' });
   res.json({ ok: true, message: 'Scan đang chạy...' });
-  runScan().catch(e => log('❌ Scan error: ' + e.message));
+  scanner.runScan().catch(console.error);
 });
 
-// ── TELEGRAM AUTH ──────────────────────────────────
+// ── TELEGRAM AUTH API ──────────────────────────────
 app.post('/api/auth/send-otp', async (req, res) => {
-  if (!tgAuth) return res.json({ ok: false, message: 'tg-auth module lỗi' });
+  if (!tgAuth) return res.json({ ok: false, message: 'Telegram module không load được' });
   try {
-    log(`📱 Sending OTP to ${req.body.phone}`);
     await tgAuth.sendOtp(req.body.phone);
-    log('✅ OTP sent');
     res.json({ ok: true });
   } catch(e) {
-    log('❌ OTP error: ' + e.message);
+    console.error('[AUTH] sendOtp error:', e.message);
     res.json({ ok: false, message: e.message });
   }
 });
 
 app.post('/api/auth/verify-otp', async (req, res) => {
-  if (!tgAuth) return res.json({ ok: false, message: 'tg-auth module lỗi' });
+  if (!tgAuth) return res.json({ ok: false, message: 'Telegram module không load được' });
   try {
-    log('🔑 Verifying OTP...');
-    await tgAuth.verifyOtp(req.body.phone, req.body.code);
-    log('✅ Telegram session saved!');
-    res.json({ ok: true });
+    const result = await tgAuth.verifyOtp(req.body.phone, req.body.code);
+    res.json({ ok: true, message: 'Session saved' });
   } catch(e) {
-    log('❌ Verify error: ' + e.message);
+    console.error('[AUTH] verifyOtp error:', e.message);
     res.json({ ok: false, message: e.message });
   }
 });
@@ -121,123 +108,20 @@ app.get('/api/auth/status', (req, res) => {
   res.json({ connected: !!session });
 });
 
-// ── SCAN LOGIC ─────────────────────────────────────
-const Anthropic = require('@anthropic-ai/sdk');
-
-const STATUS_MAP = {
-  interested:'interested', waiting:'waiting', no_budget:'no_budget',
-  follow_up_needed:'follow_up_needed', closed_won:'closed_won', closed_lost:'closed_lost'
-};
-
-async function analyzeMessages(leadName, messages, currentStatus) {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) { log('❌ No ANTHROPIC_API_KEY'); return null; }
-  
-  const client = new Anthropic({ apiKey });
-  const text = messages.map(m => `[${m.fromMe?'TÔI':leadName}]: ${m.text}`).join('\n');
-  
-  try {
-    const res = await client.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 300,
-      system: `Phân tích chat với lead crypto, trả về JSON:
-{"status":"interested|waiting|no_budget|follow_up_needed|closed_won|closed_lost|no_change","summary":"1 câu tiếng Việt","next_action":"việc cần làm"}`,
-      messages: [{ role: 'user', content: `Lead: ${leadName}\nStatus hiện tại: ${currentStatus}\n\n${text}` }]
-    });
-    return JSON.parse(res.content[0].text.replace(/```json|```/g,'').trim());
-  } catch(e) {
-    log('❌ AI error: ' + e.message);
-    return null;
-  }
-}
-
-async function runScan() {
-  const leads = getLeads();
-  const session = tgAuth ? tgAuth.getSession() : null;
-  
-  log(`📋 Leads: ${leads.length} | TG Session: ${session ? 'YES' : 'NO'}`);
-  
-  if (!session) {
-    log('⚠️ Chưa có Telegram session — vào tab Setup xác thực OTP trước');
-    return;
-  }
-
-  const { TelegramClient } = require('telegram');
-  const { StringSession } = require('telegram/sessions');
-  
-  const TG_API_ID = parseInt(process.env.TELEGRAM_API_ID || '23444646');
-  const TG_API_HASH = process.env.TELEGRAM_API_HASH || '83816a4a3a3006b19549b2ba782acae0';
-  
-  log(`📱 Connecting Telegram (API_ID: ${TG_API_ID})...`);
-  
-  let client;
-  try {
-    client = new TelegramClient(new StringSession(session), TG_API_ID, TG_API_HASH, { connectionRetries: 3 });
-    await client.connect();
-    log('✅ Telegram connected');
-  } catch(e) {
-    log('❌ Telegram connect failed: ' + e.message);
-    return;
-  }
-
-  const leadsWithTG = leads.filter(l => l.telegram_username);
-  log(`📱 Scanning ${leadsWithTG.length} leads with Telegram username...`);
-
-  if (leadsWithTG.length === 0) {
-    log('⚠️ Không có lead nào có telegram_username — thêm @username vào tab Add Lead');
-    await client.disconnect();
-    return;
-  }
-
-  let changed = 0;
-  for (const lead of leadsWithTG) {
-    try {
-      log(`  Scanning @${lead.telegram_username}...`);
-      const entity = await client.getEntity(lead.telegram_username);
-      const msgs = await client.getMessages(entity, { limit: 20 });
-      const cutoff = Date.now()/1000 - 24*3600;
-      const recent = msgs.filter(m => m.date > cutoff && m.message)
-                        .map(m => ({ fromMe: m.out, text: m.message }));
-      
-      if (!recent.length) { log(`  ⚪ ${lead.name}: không có tin mới`); continue; }
-      
-      log(`  📨 ${lead.name}: ${recent.length} tin → AI phân tích...`);
-      const analysis = await analyzeMessages(lead.name, recent, lead.status);
-      
-      if (analysis && analysis.status !== 'no_change' && analysis.status !== lead.status) {
-        const allLeads = getLeads();
-        const idx = allLeads.findIndex(l => l.id === lead.id);
-        if (idx !== -1) {
-          allLeads[idx].status = analysis.status;
-          allLeads[idx].note = analysis.summary;
-          allLeads[idx].last_scanned = new Date().toISOString();
-          saveLeads(allLeads);
-          log(`  ✅ ${lead.name}: ${lead.status} → ${analysis.status}`);
-          changed++;
-        }
-      } else {
-        log(`  → ${lead.name}: ${analysis?.summary || 'no change'}`);
-      }
-      await new Promise(r => setTimeout(r, 1000));
-    } catch(e) {
-      log(`  ❌ ${lead.name}: ${e.message}`);
-    }
-  }
-  
-  await client.disconnect();
-  log(`✅ Scan xong — ${changed} leads cập nhật`);
-}
-
-// Cron mỗi 2 giờ
-cron.schedule('0 */2 * * *', () => {
-  log('[CRON] Auto scan...');
-  runScan().catch(e => log('❌ Cron error: ' + e.message));
-}, { timezone: 'Asia/Ho_Chi_Minh' });
-
+// ── SERVE REACT ────────────────────────────────────
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'dist', 'index.html')));
 
+// ── CRON mỗi 2 giờ ────────────────────────────────
+if (scanner) {
+  cron.schedule('0 */2 * * *', () => {
+    console.log(`[CRON] ${new Date().toLocaleString('vi-VN')} — scanning...`);
+    scanner.runScan().catch(console.error);
+  }, { timezone: 'Asia/Ho_Chi_Minh' });
+}
+
 app.listen(PORT, '0.0.0.0', () => {
-  log(`🚀 Coincu Sales v3.0 — port ${PORT}`);
-  log(`📋 Leads: ${getLeads().length}`);
-  log(`TG API_ID: ${process.env.TELEGRAM_API_ID || '23444646 (default)'}`);
+  console.log(`\n🚀 Coincu Sales v2.0 — port ${PORT}`);
+  console.log(`📋 Leads: ${getLeads().length}`);
+  console.log(`🤖 Scanner: ${scanner ? 'ON' : 'OFF'}`);
+  console.log(`📱 TG Auth: ${tgAuth ? 'ON' : 'OFF'}\n`);
 });
