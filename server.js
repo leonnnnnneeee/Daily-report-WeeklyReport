@@ -128,6 +128,26 @@ app.get('/api/auth/status',async(req,res)=>{const s=await getSession();res.json(
 // SCAN
 app.post('/api/scan',async(req,res)=>{log('🔍 Manual scan');res.json({ok:true});runScan().catch(e=>log('❌ '+e.message));});
 
+// TEST - xem raw conversations (debug)
+app.get('/api/debug/conversations',async(req,res)=>{
+  const{TelegramClient}=require('telegram');const{StringSession}=require('telegram/sessions');
+  const session=await getSession();
+  if(!session)return res.json({error:'No session'});
+  try{
+    const client=new TelegramClient(new StringSession(session),TG_API_ID,TG_API_HASH,{connectionRetries:3});
+    await client.connect();
+    const dialogs=await client.getDialogs({limit:50});
+    const dms=dialogs.filter(d=>d.isUser&&!d.entity.bot).map(d=>({
+      name:((d.entity.firstName||'')+' '+(d.entity.lastName||'')).trim(),
+      username:d.entity.username||'',
+      lastMessage:d.message?.message?.slice(0,100)||'',
+      date:d.message?.date?new Date(d.message.date*1000).toLocaleDateString('vi-VN'):''
+    }));
+    await client.disconnect();
+    res.json({total:dms.length,conversations:dms});
+  }catch(e){res.json({error:e.message});}
+});
+
 async function runScan(){
   const{TelegramClient}=require('telegram');const{StringSession}=require('telegram/sessions');
   const Anthropic=require('@anthropic-ai/sdk');
@@ -223,3 +243,4 @@ app.listen(PORT,'0.0.0.0',async()=>{
   const l=await db('get','leads','','order=created_at.asc');log('📋 Leads: '+l.length);
   const s=await getSession();log('🔐 Session: '+(s?'LOADED ✅ ('+s.length+' chars)':'NOT SET ❌'));
 });
+
