@@ -5,31 +5,31 @@ const fs = require('fs');
 
 const SESSION_FILE = path.join(__dirname, '../data/tg.session');
 
+// Fallback hardcoded nếu env không có
+const TG_API_ID = parseInt(process.env.TELEGRAM_API_ID || '36780878');
+const TG_API_HASH = process.env.TELEGRAM_API_HASH || 'a9a578157a139127c0cac768c736a301';
+
 let pendingClient = null;
-let pendingResolve = null;
 
 async function sendOtp(phone) {
-  const apiId = parseInt(process.env.TELEGRAM_API_ID);
-  const apiHash = process.env.TELEGRAM_API_HASH;
+  console.log('[TG AUTH] API_ID:', TG_API_ID, 'API_HASH:', TG_API_HASH ? 'set' : 'missing');
 
-  // Đọc session cũ nếu có
   let sessionStr = '';
   if (process.env.TELEGRAM_SESSION) sessionStr = process.env.TELEGRAM_SESSION;
   else if (fs.existsSync(SESSION_FILE)) sessionStr = fs.readFileSync(SESSION_FILE, 'utf8').trim();
 
-  const client = new TelegramClient(new StringSession(sessionStr), apiId, apiHash, { connectionRetries: 3 });
+  const client = new TelegramClient(new StringSession(sessionStr), TG_API_ID, TG_API_HASH, {
+    connectionRetries: 3
+  });
 
   await client.connect();
-
-  // Gửi OTP
-  await client.sendCode({ apiId, apiHash }, phone);
+  await client.sendCode({ apiId: TG_API_ID, apiHash: TG_API_HASH }, phone);
   pendingClient = client;
-
   return { ok: true };
 }
 
 async function verifyOtp(phone, code) {
-  if (!pendingClient) throw new Error('Chưa gửi OTP — gửi OTP trước');
+  if (!pendingClient) throw new Error('Chưa gửi OTP');
 
   await pendingClient.start({
     phoneNumber: () => phone,
@@ -39,17 +39,11 @@ async function verifyOtp(phone, code) {
   });
 
   const session = pendingClient.session.save();
-
-  // Lưu session vào file
   fs.mkdirSync(path.dirname(SESSION_FILE), { recursive: true });
   fs.writeFileSync(SESSION_FILE, session);
-
-  // Cập nhật env runtime
   process.env.TELEGRAM_SESSION = session;
-
-  console.log('[TG AUTH] Session saved:', session.slice(0, 30) + '...');
+  console.log('[TG AUTH] Session saved!');
   pendingClient = null;
-
   return { ok: true, session };
 }
 
