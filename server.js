@@ -209,18 +209,31 @@ async function runScan(){
             week:Math.ceil((new Date()-new Date(new Date().getFullYear(),0,1))/604800000)});
           newLeads++;log('  ➕ Lead added: '+name);
         }
-        if(!ai) continue;
-        const msgText=recent.map(m=>'['+(m.fromMe?'TÔI':name)+']: '+m.text).join('\n');
-        const res=await ai.messages.create({model:'claude-sonnet-4-20250514',max_tokens:250,
-          system:'Sales analyst Coincu.com. JSON: {"is_lead":true/false,"name":"tên","status":"interested|waiting|no_budget|follow_up_needed|new","summary":"1 câu tiếng Việt"}\nis_lead=true nếu là dự án crypto/Web3 cần PR/media.',
-          messages:[{role:'user',content:'Chat: '+name+' (@'+username+')\n\n'+msgText}]});
-        const r=JSON.parse(res.content[0].text.replace(/```json|```/g,'').trim());
-        if(!r.is_lead){log('  ⏩ '+name+': not lead');continue;}
-        log('  🎯 LEAD: '+r.name+' | '+r.status);
+        // Rule-based - không cần AI
+        const allText=recent.map(m=>m.text).join(' ').toLowerCase();
+        const theirMsgs=recent.filter(m=>!m.fromMe);
+        const myMsgs=recent.filter(m=>m.fromMe);
+        const theirLast=(theirMsgs[theirMsgs.length-1]?.text||'').slice(0,150);
+        const myLast=(myMsgs[myMsgs.length-1]?.text||'').slice(0,150);
+
+        let status='new',note='';
+        if(/không có budget|no budget|chưa có budget/i.test(allText)){status='no_budget';note='Chưa có budget';}
+        else if(/tuần sau|tháng sau|getback|get back|bận|busy|sau nhé|later/i.test(theirLast)){status='waiting';note=theirLast;}
+        else if(/quan tâm|interested|muốn|cần|need|price|giá|báo giá|package|how much/i.test(theirLast)){status='interested';note=theirLast;}
+        else if(/ok|được|yes|đồng ý|confirm|chốt|deal|agree/i.test(theirLast)){status='closed_won';note=theirLast;}
+        else if(!theirLast&&myLast){status='follow_up_needed';note='Chưa reply: '+myLast;}
+        else{status='waiting';note=(theirLast||myLast||'').slice(0,100);}
+
+        log('  📊 '+name+': '+status);
         const ex=await db('get','leads','','telegram_username=eq.'+username);
-        if(ex&&ex.length>0){await db('patch','leads',{status:r.status,note:r.summary,last_scanned:new Date().toISOString(),last_contacted:new Date().toISOString().slice(0,10)},'id=eq.'+ex[0].id);updatedLeads++;}
-        else{await db('post','leads',{id:'lead_tg_'+entity.id,name:r.name||name,telegram_username:username,status:r.status,note:r.summary,sources:'Telegram DM',website:'',lark_email:'',research:r.summary,last_contacted:new Date().toISOString().slice(0,10),last_scanned:new Date().toISOString(),week:Math.ceil((new Date()-new Date(new Date().getFullYear(),0,1))/604800000)});newLeads++;log('  ✅ NEW: '+r.name);}
-        await new Promise(r=>setTimeout(r,1500));
+        if(ex&&ex.length>0){
+          await db('patch','leads',{status,note,last_scanned:new Date().toISOString(),last_contacted:new Date().toISOString().slice(0,10)},'id=eq.'+ex[0].id);
+          updatedLeads++;log('  🔄 '+name+' updated');
+        }else{
+          await db('post','leads',{id:'lead_tg_'+entity.id,name,telegram_username:username,status,note,sources:'Telegram DM',website:'',lark_email:'',research:'',last_contacted:new Date().toISOString().slice(0,10),last_scanned:new Date().toISOString(),week:Math.ceil((new Date()-new Date(new Date().getFullYear(),0,1))/604800000)});
+          newLeads++;log('  ✅ NEW: '+name+' ('+status+')');
+        }
+        await new Promise(r=>setTimeout(r,500));
       }catch(e){log('  ❌ TG: '+e.message);}
     }
     await client.disconnect();
@@ -246,7 +259,7 @@ async function runScan(){
   }
 
   log('✅ Done! New: '+newLeads+' | Updated: '+updatedLeads);
-  if(ai)await generateReport(ai,newLeads,updatedLeads);
+  await generateReport(null,newLeads,updatedLeads);
 }
 
 async function generateReport(ai,newLeads,updatedLeads){
@@ -275,6 +288,7 @@ app.listen(PORT,'0.0.0.0',async()=>{
   const l=await db('get','leads','','order=created_at.asc');log('📋 Leads: '+l.length);
   const s=await getSession();log('🔐 Session: '+(s?'LOADED ✅ ('+s.length+' chars)':'NOT SET ❌'));
 });
+
 
 
 
