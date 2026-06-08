@@ -33,19 +33,35 @@ async function db(method, table, data, query='') {
   } catch(e) { log('DB ' + method + ' ' + table + ': ' + e.message); return []; }
 }
 
-// Session
-const SESSION_FILE = path.join(__dirname, 'data/tg.session');
+// Session - lưu vào Supabase để persistent qua redeploy
 let pendingClient = null;
-function getSession() {
+let _cachedSession = null;
+
+async function getSession() {
+  if (_cachedSession && _cachedSession.length > 10) return _cachedSession;
+  if (process.env.TELEGRAM_SESSION && process.env.TELEGRAM_SESSION.length > 10) {
+    _cachedSession = process.env.TELEGRAM_SESSION;
+    return _cachedSession;
+  }
   try {
-    if (process.env.TELEGRAM_SESSION && process.env.TELEGRAM_SESSION.length > 10) return process.env.TELEGRAM_SESSION;
-    if (fs.existsSync(SESSION_FILE)) { const s = fs.readFileSync(SESSION_FILE,'utf8').trim(); if (s.length > 10) return s; }
-  } catch(e) {}
+    const r = await axios.get(SB_URL+'/rest/v1/sessions?key=eq.telegram_session', {headers:SBH});
+    if (r.data && r.data[0] && r.data[0].value && r.data[0].value.length > 10) {
+      _cachedSession = r.data[0].value;
+      log('✅ Session loaded from Supabase');
+      return _cachedSession;
+    }
+  } catch(e) { log('getSession error: '+e.message); }
   return null;
 }
-function saveSession(s) {
-  try { fs.mkdirSync(path.dirname(SESSION_FILE),{recursive:true}); fs.writeFileSync(SESSION_FILE,s); process.env.TELEGRAM_SESSION=s; log('✅ Session saved'); }
-  catch(e) { log('Save session error: '+e.message); }
+
+async function saveSession(s) {
+  _cachedSession = s;
+  process.env.TELEGRAM_SESSION = s;
+  try {
+    await axios.patch(SB_URL+'/rest/v1/sessions?key=eq.telegram_session',
+      {value:s, updated_at:new Date().toISOString()}, {headers:SBH});
+    log('✅ Session saved to Supabase (persistent)');
+  } catch(e) { log('saveSession error: '+e.message); }
 }
 
 // ── LEADS API ──────────────────────────────────────
@@ -123,11 +139,11 @@ app.post('/api/auth/verify-otp', async (req, res) => {
       password:()=>Promise.resolve(''),
       onError:(e)=>{throw e}
     });
-    saveSession(client.session.save()); pendingClient=null; res.json({ok:true});
+    await saveSession(client.session.save()); pendingClient=null; res.json({ok:true});
   } catch(e) { log('❌ '+e.message); res.json({ok:false,message:e.message}); }
 });
 
-app.get('/api/auth/status', (req, res) => res.json({connected:!!getSession()}));
+app.get('/api/auth/status', async (req, res) => { const s=await getSession(); res.json({connected:!!s}); });
 
 // ── SCAN API ───────────────────────────────────────
 app.post('/api/scan', async (req, res) => {
@@ -139,7 +155,7 @@ app.post('/api/scan', async (req, res) => {
 async function runScan() {
   const {TelegramClient}=require('telegram'); const {StringSession}=require('telegram/sessions');
   const Anthropic=require('@anthropic-ai/sdk');
-  const session=getSession();
+  const session=await getSession();
   log('🔐 Session: '+(session?'YES ✅':'NO ❌'));
   if (!session) { log('⚠️ No session'); return; }
 
@@ -272,4 +288,5 @@ app.listen(PORT,'0.0.0.0',()=>{
   log('✅ Ready on port '+PORT);
   db('get','leads','','order=created_at.asc').then(l=>log('📋 Leads: '+l.length));
 });
+
 
