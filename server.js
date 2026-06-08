@@ -9,7 +9,10 @@ const PORT = process.env.PORT || 8080;
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'dist')));
 
-// Live log buffer
+// Hardcode credentials trực tiếp
+const TG_API_ID = 23444646;
+const TG_API_HASH = '83816a4a3a3006b19549b2ba782acae0';
+
 const logs = [];
 function log(msg) {
   const line = `[${new Date().toLocaleTimeString('vi-VN')}] ${msg}`;
@@ -18,16 +21,32 @@ function log(msg) {
   if (logs.length > 300) logs.shift();
 }
 
-const TG_API_ID = parseInt(process.env.TELEGRAM_API_ID || '23444646');
-const TG_API_HASH = process.env.TELEGRAM_API_HASH || '83816a4a3a3006b19549b2ba782acae0';
+log(`🚀 Coincu Sales v4 starting on port ${PORT}`);
+log(`TG_API_ID: ${TG_API_ID} | TG_API_HASH: ${TG_API_HASH.slice(0,8)}...`);
 
-log(`🚀 Starting Coincu Sales v3 on port ${PORT}`);
-log(`TG_API_ID: ${TG_API_ID}`);
+// Session management
+const SESSION_FILE = path.join(__dirname, 'data/tg.session');
+let pendingClient = null;
 
-let tgAuth;
-try { tgAuth = require('./src/tg-auth'); log('✅ tg-auth loaded'); }
-catch(e) { log('❌ tg-auth error: ' + e.message); }
+function getSession() {
+  try {
+    if (fs.existsSync(SESSION_FILE)) {
+      const s = fs.readFileSync(SESSION_FILE, 'utf8').trim();
+      if (s.length > 10) { log('Session found in file'); return s; }
+    }
+  } catch(e) {}
+  return null;
+}
 
+function saveSession(session) {
+  try {
+    fs.mkdirSync(path.dirname(SESSION_FILE), { recursive: true });
+    fs.writeFileSync(SESSION_FILE, session);
+    log('Session saved to file');
+  } catch(e) { log('Save session error: ' + e.message); }
+}
+
+// Leads DB
 function getLeads() {
   const f = path.join(__dirname, 'data/leads.json');
   try { return fs.existsSync(f) ? JSON.parse(fs.readFileSync(f)).leads || [] : []; }
@@ -39,9 +58,8 @@ function saveLeads(leads) {
   fs.writeFileSync(f, JSON.stringify({ leads }, null, 2));
 }
 
-// ── LEADS ──────────────────────────────────────────
+// LEADS API
 app.get('/api/leads', (req, res) => res.json(getLeads()));
-
 app.post('/api/leads', (req, res) => {
   const leads = getLeads();
   const lead = {
@@ -49,7 +67,7 @@ app.post('/api/leads', (req, res) => {
     name: req.body.name || '',
     website: req.body.website || '',
     sources: req.body.sources || '',
-    telegram_username: (req.body.telegram_username || '').replace('@',''),
+    telegram_username: (req.body.telegram_username || '').replace('@','').trim(),
     lark_email: req.body.lark_email || '',
     research: req.body.research || '',
     status: req.body.status || 'new',
@@ -60,10 +78,9 @@ app.post('/api/leads', (req, res) => {
   };
   leads.push(lead);
   saveLeads(leads);
-  log(`➕ Added lead: ${lead.name} (@${lead.telegram_username})`);
+  log(`➕ Lead added: ${lead.name} (@${lead.telegram_username})`);
   res.json({ ok: true, lead });
 });
-
 app.patch('/api/leads/:id', (req, res) => {
   const leads = getLeads();
   const idx = leads.findIndex(l => l.id === req.params.id);
@@ -74,12 +91,10 @@ app.patch('/api/leads/:id', (req, res) => {
   saveLeads(leads);
   res.json({ ok: true });
 });
-
 app.delete('/api/leads/:id', (req, res) => {
   saveLeads(getLeads().filter(l => l.id !== req.params.id));
   res.json({ ok: true });
 });
-
 app.get('/api/stats', (req, res) => {
   const leads = getLeads();
   const counts = {};
@@ -87,159 +102,161 @@ app.get('/api/stats', (req, res) => {
   res.json({ total: leads.length, counts });
 });
 
-// ── LOGS ───────────────────────────────────────────
-app.get('/api/logs', (req, res) => {
-  res.setHeader('Content-Type', 'application/json');
-  res.json(logs);
-});
+// LOGS API
+app.get('/api/logs', (req, res) => res.json(logs));
 
-// ── TELEGRAM AUTH ──────────────────────────────────
+// AUTH API
 app.post('/api/auth/send-otp', async (req, res) => {
-  log(`📱 Sending OTP to ${req.body.phone}...`);
-  if (!tgAuth) return res.json({ ok: false, message: 'tg-auth module lỗi' });
+  const { TelegramClient } = require('telegram');
+  const { StringSession } = require('telegram/sessions');
+  const phone = req.body.phone;
+  log(`📱 Sending OTP to ${phone} | API_ID: ${TG_API_ID}`);
   try {
-    await tgAuth.sendOtp(req.body.phone);
-    log('✅ OTP sent!');
+    const client = new TelegramClient(new StringSession(''), TG_API_ID, TG_API_HASH, { connectionRetries: 5 });
+    await client.connect();
+    await client.sendCode({ apiId: TG_API_ID, apiHash: TG_API_HASH }, phone);
+    pendingClient = client;
+    log('✅ OTP sent successfully!');
     res.json({ ok: true });
   } catch(e) {
-    log('❌ OTP error: ' + e.message);
+    log('❌ Send OTP error: ' + e.message);
     res.json({ ok: false, message: e.message });
   }
 });
 
 app.post('/api/auth/verify-otp', async (req, res) => {
-  log('🔑 Verifying OTP...');
-  if (!tgAuth) return res.json({ ok: false, message: 'tg-auth module lỗi' });
+  const { TelegramClient } = require('telegram');
+  const { StringSession } = require('telegram/sessions');
+  const { phone, code } = req.body;
+  log(`🔑 Verifying OTP for ${phone}`);
   try {
-    await tgAuth.verifyOtp(req.body.phone, req.body.code);
-    log('✅ Telegram session saved!');
+    let client = pendingClient;
+    if (!client) {
+      client = new TelegramClient(new StringSession(''), TG_API_ID, TG_API_HASH, { connectionRetries: 5 });
+      await client.connect();
+    }
+    await client.start({
+      phoneNumber: () => Promise.resolve(phone),
+      phoneCode: () => Promise.resolve(code),
+      password: () => Promise.resolve(''),
+      onError: (e) => { throw e }
+    });
+    const session = client.session.save();
+    saveSession(session);
+    pendingClient = null;
+    log('✅ Telegram authenticated! Session saved.');
     res.json({ ok: true });
   } catch(e) {
-    log('❌ Verify error: ' + e.message);
+    log('❌ Verify OTP error: ' + e.message);
     res.json({ ok: false, message: e.message });
   }
 });
 
 app.get('/api/auth/status', (req, res) => {
-  const session = tgAuth ? tgAuth.getSession() : null;
+  const session = getSession();
   res.json({ connected: !!session });
 });
 
-// ── SCAN ───────────────────────────────────────────
+// SCAN
 app.post('/api/scan', async (req, res) => {
   log('🔍 Manual scan triggered');
-  res.json({ ok: true, message: 'Scan đang chạy...' });
+  res.json({ ok: true });
   runScan().catch(e => log('❌ Scan error: ' + e.message));
 });
 
 async function runScan() {
-  const leads = getLeads();
-  const session = tgAuth ? tgAuth.getSession() : null;
-
-  log(`📋 Total leads: ${leads.length}`);
-  log(`🔐 TG Session: ${session ? 'YES ✅' : 'NO ❌'}`);
-
-  if (!session) {
-    log('⚠️  Chưa có session — vào tab Auto Scan xác thực OTP');
-    return;
-  }
-
   const { TelegramClient } = require('telegram');
   const { StringSession } = require('telegram/sessions');
   const Anthropic = require('@anthropic-ai/sdk');
 
-  log(`📱 Connecting Telegram (API_ID: ${TG_API_ID})...`);
+  const leads = getLeads();
+  const session = getSession();
+
+  log(`📋 Leads: ${leads.length} | Session: ${session ? 'YES ✅' : 'NO ❌'}`);
+
+  if (!session) {
+    log('⚠️ No session — authenticate first in Auto Scan tab');
+    return;
+  }
+
+  const leadsWithTG = leads.filter(l => l.telegram_username && l.telegram_username.length > 0);
+  log(`📱 Leads with TG username: ${leadsWithTG.length}`);
+
+  if (!leadsWithTG.length) {
+    log('⚠️ No leads have telegram_username set!');
+    return;
+  }
+
+  log(`🔌 Connecting to Telegram...`);
   let client;
   try {
     client = new TelegramClient(new StringSession(session), TG_API_ID, TG_API_HASH, { connectionRetries: 3 });
     await client.connect();
     log('✅ Telegram connected!');
   } catch(e) {
-    log('❌ Connect failed: ' + e.message);
-    return;
-  }
-
-  const leadsWithTG = leads.filter(l => l.telegram_username);
-  log(`📱 Leads có TG username: ${leadsWithTG.length}`);
-
-  if (!leadsWithTG.length) {
-    log('⚠️  Không có lead nào có telegram_username!');
-    await client.disconnect();
+    log('❌ TG connect failed: ' + e.message);
     return;
   }
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
   const ai = apiKey ? new Anthropic({ apiKey }) : null;
-  if (!ai) log('⚠️  Không có ANTHROPIC_API_KEY — sẽ không AI phân tích');
+  log(`🤖 AI: ${ai ? 'enabled' : 'disabled (no ANTHROPIC_API_KEY)'}`);
 
   let changed = 0;
   for (const lead of leadsWithTG) {
     try {
-      log(`  🔍 Scanning @${lead.telegram_username} (${lead.name})...`);
+      log(`🔍 Scanning @${lead.telegram_username} (${lead.name})...`);
       const entity = await client.getEntity(lead.telegram_username);
-      const msgs = await client.getMessages(entity, { limit: 30 });
-      const cutoff = Date.now()/1000 - 48*3600; // 48h
+      const msgs = await client.getMessages(entity, { limit: 20 });
+      const cutoff = Date.now()/1000 - 72*3600;
       const recent = msgs.filter(m => m.date > cutoff && m.message)
-                        .map(m => ({ fromMe: m.out, text: m.message, date: new Date(m.date*1000).toLocaleString('vi-VN') }));
+        .map(m => ({ fromMe: m.out, text: m.message }));
+      log(`  📨 ${recent.length} messages in last 72h`);
 
-      log(`  📨 ${lead.name}: ${recent.length} tin nhắn trong 48h qua`);
-
-      if (!recent.length) {
-        log(`  ⚪ ${lead.name}: không có tin mới`);
-        continue;
-      }
-
-      // Hiện tin nhắn
-      recent.forEach(m => log(`    [${m.fromMe?'TÔI':lead.name}]: ${m.text.slice(0,80)}`));
+      if (!recent.length) { log(`  ⚪ No new messages`); continue; }
+      recent.forEach(m => log(`  [${m.fromMe?'ME':lead.name}]: ${m.text.slice(0,60)}`));
 
       if (!ai) continue;
 
-      // AI phân tích
-      const msgText = recent.map(m => `[${m.fromMe?'TÔI':lead.name}]: ${m.text}`).join('\n');
       const res = await ai.messages.create({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 200,
-        system: `Phân tích chat với lead crypto. Trả về JSON:
-{"status":"interested|waiting|no_budget|follow_up_needed|closed_won|closed_lost|no_change","summary":"1 câu tiếng Việt","next_action":"việc cần làm"}`,
-        messages: [{ role: 'user', content: `Lead: ${lead.name}\nStatus hiện tại: ${lead.status}\n\n${msgText}` }]
+        model: 'claude-sonnet-4-20250514', max_tokens: 200,
+        system: `Phân tích chat với lead crypto. JSON: {"status":"interested|waiting|no_budget|follow_up_needed|closed_won|closed_lost|no_change","summary":"1 câu tiếng Việt","next_action":"..."}`,
+        messages: [{ role: 'user', content: `Lead: ${lead.name}\nStatus: ${lead.status}\n${recent.map(m=>`[${m.fromMe?'ME':lead.name}]:${m.text}`).join('\n')}` }]
       });
 
-      const analysis = JSON.parse(res.content[0].text.replace(/```json|```/g,'').trim());
-      log(`  🤖 AI: ${analysis.status} — ${analysis.summary}`);
+      const r = JSON.parse(res.content[0].text.replace(/```json|```/g,'').trim());
+      log(`  🤖 → ${r.status}: ${r.summary}`);
 
-      if (analysis.status !== 'no_change' && analysis.status !== lead.status) {
-        const allLeads = getLeads();
-        const idx = allLeads.findIndex(l => l.id === lead.id);
+      if (r.status !== 'no_change' && r.status !== lead.status) {
+        const all = getLeads();
+        const idx = all.findIndex(l => l.id === lead.id);
         if (idx !== -1) {
-          allLeads[idx].status = analysis.status;
-          allLeads[idx].note = analysis.summary;
-          allLeads[idx].last_scanned = new Date().toISOString();
-          saveLeads(allLeads);
-          log(`  ✅ ${lead.name}: ${lead.status} → ${analysis.status}`);
+          all[idx].status = r.status;
+          all[idx].note = r.summary;
+          all[idx].last_scanned = new Date().toISOString();
+          saveLeads(all);
+          log(`  ✅ Updated: ${lead.status} → ${r.status}`);
           changed++;
         }
       }
-
-      await new Promise(r => setTimeout(r, 1500));
+      await new Promise(r => setTimeout(r, 1000));
     } catch(e) {
-      log(`  ❌ ${lead.name}: ${e.message}`);
+      log(`  ❌ Error scanning ${lead.name}: ${e.message}`);
     }
   }
 
   try { await client.disconnect(); } catch {}
-  log(`✅ Scan hoàn tất — ${changed} leads cập nhật`);
+  log(`✅ Scan done — ${changed} leads updated`);
 }
 
-// Cron mỗi 2 giờ
 cron.schedule('0 */2 * * *', () => {
-  log('[CRON] Auto scan triggered');
-  runScan().catch(e => log('❌ Cron: ' + e.message));
+  log('[CRON] Auto scan...');
+  runScan().catch(e => log('❌ ' + e.message));
 }, { timezone: 'Asia/Ho_Chi_Minh' });
 
-// Serve React
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'dist', 'index.html')));
 
 app.listen(PORT, '0.0.0.0', () => {
-  log(`✅ Server listening on port ${PORT}`);
+  log(`✅ Server ready on port ${PORT}`);
   log(`📋 Leads: ${getLeads().length}`);
 });
