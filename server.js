@@ -12,122 +12,131 @@ const LARK_APP_SECRET=process.env.LARK_APP_SECRET||'gGPfGXRBBttVVTqobADg5d85rtus
 const SBH={'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json','Prefer':'return=representation'};
 
 const logs=[];
-function log(msg){const line='['+new Date().toLocaleTimeString('vi-VN')+'] '+msg;console.log(line);logs.push(line);if(logs.length>500)logs.shift();}
-log('🚀 Coincu Sales v8');
+function log(msg){const l='['+new Date().toLocaleTimeString('vi-VN')+'] '+msg;console.log(l);logs.push(l);if(logs.length>500)logs.shift();}
+log('🚀 Coincu Sales v10');
 
 async function db(method,table,data,query=''){
   try{const r=await axios({method,url:SB_URL+'/rest/v1/'+table+(query?'?'+query:''),headers:SBH,data});return r.data||[];}
   catch(e){log('DB '+method+' '+table+': '+e.message);return[];}
 }
 
-// SESSION - Persistent Supabase (upsert)
+// SESSION
 let pendingClient=null,_session=null;
 async function getSession(){
   if(_session&&_session.length>10)return _session;
-  try{
-    const r=await axios.get(SB_URL+'/rest/v1/sessions?key=eq.telegram_session',{headers:SBH});
-    if(r.data&&r.data[0]&&r.data[0].value&&r.data[0].value.length>10){
-      _session=r.data[0].value;log('✅ Session loaded ('+_session.length+' chars)');return _session;
-    }
-  }catch(e){log('getSession: '+e.message);}
+  try{const r=await axios.get(SB_URL+'/rest/v1/sessions?key=eq.telegram_session',{headers:SBH});if(r.data&&r.data[0]&&r.data[0].value&&r.data[0].value.length>10){_session=r.data[0].value;log('✅ Session loaded');return _session;}}catch(e){}
   return null;
 }
 async function saveSession(s){
   _session=s;
-  try{
-    const h={...SBH,'Prefer':'resolution=merge-duplicates'};
-    await axios.post(SB_URL+'/rest/v1/sessions',{key:'telegram_session',value:s,updated_at:new Date().toISOString()},{headers:h});
-    log('✅ Session saved to Supabase ('+s.length+' chars) - persistent!');
-  }catch(e){log('saveSession: '+e.message);}
+  try{const h={...SBH,'Prefer':'resolution=merge-duplicates'};await axios.post(SB_URL+'/rest/v1/sessions',{key:'telegram_session',value:s,updated_at:new Date().toISOString()},{headers:h});log('✅ Session saved persistently!');}
+  catch(e){log('saveSession: '+e.message);}
 }
 
-// LARK
+// LARK TOKEN
 let _larkToken=null,_larkExpiry=0;
 async function getLarkToken(){
   if(_larkToken&&Date.now()<_larkExpiry)return _larkToken;
-  try{
-    const r=await axios.post('https://open.larksuite.com/open-apis/auth/v3/tenant_access_token/internal',{app_id:LARK_APP_ID,app_secret:LARK_APP_SECRET});
+  try{const r=await axios.post('https://open.larksuite.com/open-apis/auth/v3/tenant_access_token/internal',{app_id:LARK_APP_ID,app_secret:LARK_APP_SECRET});
     if(r.data.code===0){_larkToken=r.data.tenant_access_token;_larkExpiry=Date.now()+(r.data.expire-60)*1000;log('✅ Lark token OK');return _larkToken;}
-    log('❌ Lark auth: '+r.data.msg);
-  }catch(e){log('❌ Lark token: '+e.message);}
+    log('❌ Lark auth: '+r.data.msg);}catch(e){log('❌ Lark token: '+e.message);}
   return null;
 }
+
+// ── LEADS ──────────────────────────────────────────
+app.get('/api/leads',async(req,res)=>res.json(await db('get','leads','','order=created_at.asc')));
+app.post('/api/leads',async(req,res)=>{
+  const lead={id:'lead_'+Date.now(),name:req.body.name||'',website:req.body.website||'',sources:req.body.sources||'',
+    telegram_username:(req.body.telegram_username||'').replace('@','').trim(),lark_email:req.body.lark_email||'',
+    research:req.body.research||'',status:req.body.status||'new',note:req.body.note||'',
+    last_contacted:new Date().toISOString().slice(0,10),week:Math.ceil((new Date()-new Date(new Date().getFullYear(),0,1))/604800000)};
+  await db('post','leads',lead);log('➕ '+lead.name);res.json({ok:true,lead});
+});
+app.patch('/api/leads/:id',async(req,res)=>{
+  const d={last_contacted:new Date().toISOString().slice(0,10),updated_at:new Date().toISOString()};
+  if(req.body.status)d.status=req.body.status;if(req.body.note!==undefined)d.note=req.body.note;
+  await db('patch','leads',d,'id=eq.'+req.params.id);res.json({ok:true});
+});
+app.delete('/api/leads/:id',async(req,res)=>{await db('delete','leads',null,'id=eq.'+req.params.id);res.json({ok:true});});
+app.get('/api/stats',async(req,res)=>{
+  const leads=await db('get','leads','','order=created_at.asc');
+  const counts={};leads.forEach(l=>{counts[l.status]=(counts[l.status]||0)+1;});
+  res.json({total:leads.length,counts});
+});
+
+// ── REPORTS ────────────────────────────────────────
+app.get('/api/reports',async(req,res)=>res.json(await db('get','reports','','order=created_at.desc&limit=30')));
+app.get('/api/reports/latest',async(req,res)=>{const r=await db('get','reports','','order=created_at.desc&limit=1');res.json(r[0]||null);});
+app.delete('/api/reports/:id',async(req,res)=>{await db('delete','reports',null,'id=eq.'+req.params.id);res.json({ok:true});});
+
+// ── LOGS ───────────────────────────────────────────
+app.get('/api/logs',(req,res)=>res.json(logs));
+
+// ── API KEY SAVE ───────────────────────────────────
+app.post('/api/settings/apikey',async(req,res)=>{
+  const key=req.body.key||'';
+  if(!key.startsWith('sk-'))return res.json({ok:false,message:'Invalid key'});
+  const h={...SBH,'Prefer':'resolution=merge-duplicates'};
+  await axios.post(SB_URL+'/rest/v1/sessions',{key:'anthropic_key',value:key,updated_at:new Date().toISOString()},{headers:h});
+  log('✅ API key saved');res.json({ok:true});
+});
+
+// ── AUTH ───────────────────────────────────────────
+app.post('/api/auth/send-otp',async(req,res)=>{
+  const{TelegramClient}=require('telegram');const{StringSession}=require('telegram/sessions');
+  log('📱 Sending OTP to '+req.body.phone);
+  try{const client=new TelegramClient(new StringSession(''),TG_API_ID,TG_API_HASH,{connectionRetries:5});
+    await client.connect();await client.sendCode({apiId:TG_API_ID,apiHash:TG_API_HASH},req.body.phone);
+    pendingClient=client;log('✅ OTP sent!');res.json({ok:true});}
+  catch(e){log('❌ '+e.message);res.json({ok:false,message:e.message});}
+});
+app.post('/api/auth/verify-otp',async(req,res)=>{
+  const{TelegramClient}=require('telegram');const{StringSession}=require('telegram/sessions');
+  log('🔑 Verifying OTP...');
+  try{let client=pendingClient||new TelegramClient(new StringSession(''),TG_API_ID,TG_API_HASH,{connectionRetries:5});
+    if(!pendingClient)await client.connect();
+    await client.start({phoneNumber:()=>Promise.resolve(req.body.phone),phoneCode:()=>Promise.resolve(req.body.code),password:()=>Promise.resolve(''),onError:(e)=>{throw e}});
+    await saveSession(client.session.save());pendingClient=null;res.json({ok:true});}
+  catch(e){log('❌ '+e.message);res.json({ok:false,message:e.message});}
+});
+app.get('/api/auth/status',async(req,res)=>{const s=await getSession();res.json({connected:!!s});});
+
+// ── SCAN ───────────────────────────────────────────
+app.post('/api/scan',async(req,res)=>{log('🔍 Scan triggered');res.json({ok:true});runScan().catch(e=>log('❌ '+e.message));});
+
 async function scanLarkEmails(){
   log('📧 Scanning Lark Mail...');
-  const token = await getLarkToken();
-  if(!token){ log('❌ No Lark token'); return []; }
+  const token=await getLarkToken();
+  if(!token){log('❌ No Lark token');return[];}
   try{
-    // Lấy user mailbox
-    const userRes = await axios.get('https://open.larksuite.com/open-apis/mail/v1/user_mailboxes',{
-      headers:{Authorization:'Bearer '+token}
-    });
-    const mailboxes = userRes.data?.data?.items || [];
+    const userRes=await axios.get('https://open.larksuite.com/open-apis/mail/v1/user_mailboxes',{headers:{Authorization:'Bearer '+token}});
+    const mailboxes=userRes.data?.data?.items||[];
     log('📧 Mailboxes: '+mailboxes.length);
-    if(!mailboxes.length){ log('⚠️ No mailbox found'); return []; }
-
-    const mailboxId = mailboxes[0].mailbox_id;
-    log('📧 Using mailbox: '+mailboxId);
-
-    // Lấy emails gần đây
-    const msgsRes = await axios.get(`https://open.larksuite.com/open-apis/mail/v1/user_mailboxes/${mailboxId}/mails`,{
-      headers:{Authorization:'Bearer '+token},
-      params:{page_size:50}
-    });
-
-    const emails = msgsRes.data?.data?.items || [];
-    const since = Date.now() - 72*3600*1000;
-    const results = [];
-
+    if(!mailboxes.length){log('⚠️ No mailbox');return[];}
+    const mbId=mailboxes[0].mailbox_id;
+    const msgsRes=await axios.get('https://open.larksuite.com/open-apis/mail/v1/user_mailboxes/'+mbId+'/mails',{headers:{Authorization:'Bearer '+token},params:{page_size:50}});
+    const emails=msgsRes.data?.data?.items||[];
+    const since=Date.now()-72*3600*1000;
+    const results=[];
     for(const email of emails){
-      if(parseInt(email.receive_time)*1000 < since) continue;
+      if(parseInt(email.receive_time||0)*1000<since)continue;
       try{
-        const detail = await axios.get(
-          `https://open.larksuite.com/open-apis/mail/v1/user_mailboxes/${mailboxId}/mails/${email.mail_id}`,
-          {headers:{Authorization:'Bearer '+token}}
-        );
-        const d = detail.data?.data;
-        if(d) results.push({
-          id: email.mail_id,
-          subject: d.subject||'',
-          from: d.from?.mail_address||'',
-          fromName: d.from?.name||d.from?.mail_address||'',
-          snippet: (d.body_plain||'').slice(0,300)
-        });
-      }catch(e){ continue; }
+        const d=(await axios.get('https://open.larksuite.com/open-apis/mail/v1/user_mailboxes/'+mbId+'/mails/'+email.mail_id,{headers:{Authorization:'Bearer '+token}})).data?.data;
+        if(d)results.push({id:email.mail_id,subject:d.subject||'',from:d.from?.mail_address||'',fromName:d.from?.name||d.from?.mail_address||'',snippet:(d.body_plain||'').slice(0,300)});
+      }catch{}
     }
-    log('📧 Found '+results.length+' emails in 72h');
-    return results;
-  }catch(e){
-    log('❌ Lark email error: '+e.message);
-    return [];
-  }
+    log('📧 Found '+results.length+' emails');return results;
+  }catch(e){log('❌ Lark: '+e.message);return[];}
 }
-
 
 async function runScan(){
   const{TelegramClient}=require('telegram');const{StringSession}=require('telegram/sessions');
-  const Anthropic=require('@anthropic-ai/sdk');
   const session=await getSession();
-  log('🔐 Session: '+(session?'YES ('+session.length+' chars) ✅':'NO ❌'));
-  if(!session){log('⚠️ No session — authenticate first');return;}
-  // Load API key: env > Supabase
-  let apiKey = process.env.ANTHROPIC_API_KEY || '';
-  log('🔑 ENV key: '+(apiKey?apiKey.slice(0,15)+'... ('+apiKey.length+')':'EMPTY'));
-  
-  if(!apiKey || apiKey.length < 20){
-    try{
-      const r=await axios.get(SB_URL+'/rest/v1/sessions?key=eq.anthropic_key',{headers:SBH});
-      const sbKey = r.data&&r.data[0]&&r.data[0].value||'';
-      if(sbKey.length>20){ apiKey=sbKey; log('🔑 Supabase key loaded: '+apiKey.slice(0,15)+'... ('+apiKey.length+')'); }
-      else log('⚠️ Supabase key empty/short: '+sbKey.length+' chars');
-    }catch(e){log('⚠️ Load Supabase key: '+e.message);}
-  }
-  
-  const ai = apiKey && apiKey.startsWith('sk-') ? new Anthropic({apiKey}) : null;
-  log(ai ? '✅ AI ready ('+apiKey.slice(0,15)+')' : '❌ No valid API key - leads added without AI');
+  log('🔐 Session: '+(session?'YES ✅':'NO ❌'));
+  if(!session){log('⚠️ Authenticate first');return;}
   let newLeads=0,updatedLeads=0;
 
-  // TG scan
+  // TG SCAN
   let client;
   try{
     client=new TelegramClient(new StringSession(session),TG_API_ID,TG_API_HASH,{connectionRetries:3});
@@ -145,18 +154,7 @@ async function runScan(){
         const recent=msgs.filter(m=>m.date>cutoff&&m.message).map(m=>({fromMe:m.out,text:m.message}));
         if(!recent.length)continue;
         log('  💬 '+name+' (@'+username+'): '+recent.length+' msgs');
-        // Luôn thêm lead dù có AI hay không
-        const exCheck=await db('get','leads','','telegram_username=eq.'+username);
-        if(!exCheck||!exCheck.length){
-          await db('post','leads',{id:'lead_tg_'+entity.id,name:name,telegram_username:username,
-            status:'new',note:recent[recent.length-1]?.text?.slice(0,100)||'',
-            sources:'Telegram DM',website:'',lark_email:'',research:'',
-            last_contacted:new Date().toISOString().slice(0,10),
-            last_scanned:new Date().toISOString(),
-            week:Math.ceil((new Date()-new Date(new Date().getFullYear(),0,1))/604800000)});
-          newLeads++;log('  ➕ Lead added: '+name);
-        }
-        // Rule-based - không cần AI
+
         const allText=recent.map(m=>m.text).join(' ').toLowerCase();
         const theirMsgs=recent.filter(m=>!m.fromMe);
         const myMsgs=recent.filter(m=>m.fromMe);
@@ -173,109 +171,73 @@ async function runScan(){
 
         log('  📊 '+name+': '+status);
         const ex=await db('get','leads','','telegram_username=eq.'+username);
-        if(ex&&ex.length>0){
-          await db('patch','leads',{status,note,last_scanned:new Date().toISOString(),last_contacted:new Date().toISOString().slice(0,10)},'id=eq.'+ex[0].id);
-          updatedLeads++;log('  🔄 '+name+' updated');
-        }else{
-          await db('post','leads',{id:'lead_tg_'+entity.id,name,telegram_username:username,status,note,sources:'Telegram DM',website:'',lark_email:'',research:'',last_contacted:new Date().toISOString().slice(0,10),last_scanned:new Date().toISOString(),week:Math.ceil((new Date()-new Date(new Date().getFullYear(),0,1))/604800000)});
-          newLeads++;log('  ✅ NEW: '+name+' ('+status+')');
-        }
+        if(ex&&ex.length>0){await db('patch','leads',{status,note,last_scanned:new Date().toISOString(),last_contacted:new Date().toISOString().slice(0,10)},'id=eq.'+ex[0].id);updatedLeads++;log('  🔄 Updated: '+name);}
+        else{await db('post','leads',{id:'lead_tg_'+entity.id,name,telegram_username:username,status,note,sources:'Telegram DM',website:'',lark_email:'',research:'',last_contacted:new Date().toISOString().slice(0,10),last_scanned:new Date().toISOString(),week:Math.ceil((new Date()-new Date(new Date().getFullYear(),0,1))/604800000)});newLeads++;log('  ✅ NEW: '+name+' ('+status+')');}
         await new Promise(r=>setTimeout(r,500));
       }catch(e){log('  ❌ TG: '+e.message);}
     }
     await client.disconnect();
   }catch(e){log('❌ TG scan: '+e.message);try{await client?.disconnect();}catch{}}
 
-  // Lark email scan - rule-based
-  const emails = await scanLarkEmails();
-  log('📧 Processing '+emails.length+' emails...');
+  // LARK EMAIL SCAN
+  const emails=await scanLarkEmails();
   for(const email of emails){
     try{
-      const allText = (email.subject+' '+email.snippet).toLowerCase();
-      const fromName = email.fromName || email.from;
-
-      // Rule-based status
-      let status='new', note='';
-      if(/budget|chi phí|pricing|giá/i.test(allText) && /không|no|chưa/i.test(allText)){ status='no_budget'; note='Chưa có budget - '+email.subject; }
-      else if(/interested|quan tâm|muốn|want|need|cần|báo giá|quotation/i.test(allText)){ status='interested'; note=email.subject; }
-      else if(/đồng ý|agree|confirm|ok|deal|chốt/i.test(allText)){ status='closed_won'; note=email.subject; }
-      else if(/re:|reply|trả lời/i.test(email.subject)){ status='waiting'; note='Reply: '+email.subject; }
-      else{ status='new'; note=email.subject; }
-
-      log('  📧 '+fromName+' | '+status+' | '+email.subject.slice(0,50));
-
-      const ex = await db('get','leads','','lark_email=eq.'+email.from);
-      if(ex&&ex.length>0){
-        await db('patch','leads',{status,note,last_scanned:new Date().toISOString(),last_contacted:new Date().toISOString().slice(0,10)},'id=eq.'+ex[0].id);
-        updatedLeads++; log('  🔄 Updated email lead: '+fromName);
-      } else {
-        await db('post','leads',{
-          id:'lead_email_'+Date.now(), name:fromName,
-          telegram_username:'', lark_email:email.from,
-          status, note, sources:'Lark Email',
-          website:'', research:email.snippet.slice(0,200),
-          last_contacted:new Date().toISOString().slice(0,10),
-          last_scanned:new Date().toISOString(),
-          week:Math.ceil((new Date()-new Date(new Date().getFullYear(),0,1))/604800000)
-        });
-        newLeads++; log('  ✅ NEW email lead: '+fromName);
-      }
-    }catch(e){ log('  ❌ Email: '+e.message); }
+      const allText=(email.subject+' '+email.snippet).toLowerCase();
+      let status='new',note='';
+      if(/budget|chi phí|không có|no budget/i.test(allText)){status='no_budget';note='No budget - '+email.subject;}
+      else if(/interested|quan tâm|muốn|want|need|cần|báo giá|quotation|price/i.test(allText)){status='interested';note=email.subject;}
+      else if(/đồng ý|agree|confirm|ok|deal|chốt/i.test(allText)){status='closed_won';note=email.subject;}
+      else if(/re:|reply/i.test(email.subject)){status='waiting';note='Reply: '+email.subject;}
+      else{status='new';note=email.subject;}
+      log('  📧 '+email.fromName+' | '+status);
+      const ex=await db('get','leads','','lark_email=eq.'+email.from);
+      if(ex&&ex.length>0){await db('patch','leads',{status,note,last_scanned:new Date().toISOString(),last_contacted:new Date().toISOString().slice(0,10)},'id=eq.'+ex[0].id);updatedLeads++;log('  🔄 Email updated: '+email.fromName);}
+      else{await db('post','leads',{id:'lead_email_'+Date.now(),name:email.fromName,telegram_username:'',lark_email:email.from,status,note,sources:'Lark Email',website:'',research:email.snippet.slice(0,200),last_contacted:new Date().toISOString().slice(0,10),last_scanned:new Date().toISOString(),week:Math.ceil((new Date()-new Date(new Date().getFullYear(),0,1))/604800000)});newLeads++;log('  ✅ NEW email: '+email.fromName);}
+    }catch(e){log('  ❌ Email: '+e.message);}
   }
 
   log('✅ Done! New: '+newLeads+' | Updated: '+updatedLeads);
-  await generateReport(null,newLeads,updatedLeads);
+  await generateReport(newLeads,updatedLeads);
 }
 
-async function generateReport(ai, newLeads, updatedLeads){
-  const leads = await db('get','leads','','order=updated_at.desc');
-  if(!leads.length) return;
-  const today = new Date();
-  const dateStr = today.getDate()+'-'+(today.getMonth()+1);
-  const sn = {interested:'quan tâm, đang discuss',waiting:'đã phản hồi, đang đợi',no_budget:'chưa có budget',follow_up_needed:'cần follow up',closed_won:'đã chốt deal',closed_lost:'không quan tâm'};
-  const done = leads.filter(l=>l.status!=='new');
-  const fu = leads.filter(l=>l.status==='follow_up_needed'||l.status==='waiting');
-  const detail = done.map(l=>'- '+l.name+': '+(l.note||sn[l.status]||l.status)).join('\n');
+async function generateReport(newLeads,updatedLeads){
+  const leads=await db('get','leads','','order=updated_at.desc');
+  if(!leads.length)return;
+  const today=new Date();
+  const dateStr=today.getDate()+'-'+(today.getMonth()+1);
+  const sn={interested:'quan tâm, đang discuss',waiting:'đã phản hồi, đang đợi',no_budget:'chưa có budget',follow_up_needed:'cần follow up',closed_won:'đã chốt deal',closed_lost:'không quan tâm'};
+  const done=leads.filter(l=>l.status!=='new');
+  const fu=leads.filter(l=>l.status==='follow_up_needed'||l.status==='waiting');
+  const tgLeads=done.filter(l=>l.telegram_username);
+  const emailLeads=done.filter(l=>l.lark_email&&!l.telegram_username);
+  const tgDetail=tgLeads.map(l=>'  - '+l.name+' (@'+l.telegram_username+'): '+(l.note||sn[l.status]||l.status)).join('\n');
+  const emailDetail=emailLeads.map(l=>'  - '+l.name+' ('+l.lark_email+'): '+(l.note||sn[l.status]||l.status)).join('\n');
 
-  const content = `E gửi Standup note ngày ${dateStr}:
+  const content=`E gửi Standup note ngày ${dateStr}:
 
 1. What did you accomplish yesterday?
-- Reach out các leads từ Telegram:
-${detail||'- Không có hoạt động mới'}${newLeads>0?'\n- Tìm được '+newLeads+' leads mới từ Telegram scan':''}
+- Reach out qua Telegram:
+${tgDetail||'  - Không có hoạt động mới'}${newLeads>0?'\n- Tìm được '+newLeads+' leads mới từ scan':''}
+- Reach out qua Lark Email:
+${emailDetail||'  - Không có email mới'}
 
 2. What are you planning to do today?
-- Reach out các lead trong Telegram
+- Reach out các lead trong Telegram + Email
 - Tìm thêm lead mới từ sản phẩm
-${fu.length>0?'- Follow up: '+fu.map(l=>l.name).join(', '):''}
+${fu.length>0?'- Follow up: '+fu.map(l=>l.name+(l.telegram_username?' (@'+l.telegram_username+')':'')).join(', '):''}
 - Collect lại date email gửi email remind`;
 
-  try {
-    await db('post','reports',{
-      id:'report_'+Date.now(),
-      date:today.toISOString().slice(0,10),
-      content, leads_scanned:leads.length,
-      new_leads:newLeads, updated_leads:updatedLeads
-    });
+  try{
+    await db('post','reports',{id:'report_'+Date.now(),date:today.toISOString().slice(0,10),content,leads_scanned:leads.length,new_leads:newLeads,updated_leads:updatedLeads});
     log('✅ Report saved!');
-    log('📊 '+content.slice(0,100));
-  } catch(e) { log('❌ Report save: '+e.message); }
+  }catch(e){log('❌ Report: '+e.message);}
 }
-
 
 cron.schedule('0 8 * * *',()=>{log('[CRON] 8AM scan');runScan().catch(e=>log('❌ '+e.message));},{timezone:'Asia/Ho_Chi_Minh'});
 app.get('*',(req,res)=>res.sendFile(path.join(__dirname,'dist','index.html')));
 app.listen(PORT,'0.0.0.0',async()=>{
   log('✅ Ready on port '+PORT);
   const l=await db('get','leads','','order=created_at.asc');log('📋 Leads: '+l.length);
-  const s=await getSession();log('🔐 Session: '+(s?'LOADED ✅ ('+s.length+' chars)':'NOT SET ❌'));
+  const s=await getSession();log('🔐 Session: '+(s?'LOADED ✅':'NOT SET ❌'));
 });
-
-
-
-
-
-
-
-
-
-
