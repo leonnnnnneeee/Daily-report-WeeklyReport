@@ -280,15 +280,11 @@ export default function App() {
             <h2 style={{fontSize:20,fontWeight:700,marginBottom:6}}>Add Lead Thủ Công</h2>
             <p style={{color:'#6B7280',fontSize:13,marginBottom:16}}>Hoặc dùng <strong>Auto Scan</strong> để tự quét từ Telegram + Email</p>
             <div style={{background:'#fff',border:'1px solid #E5E7EB',borderRadius:12,padding:20}}>
-              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:10}}>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
                 {[['website','Website'],['telegram_username','Telegram username (không có @)'],['lark_email','Lark email']].map(([k,p])=>(
                   <input key={k} placeholder={p} value={newLead[k]} onChange={e=>setNewLead({...newLead,[k]:e.target.value})} style={inp}/>
                 ))}
               </div>
-              <select value={newLead.status} onChange={e=>setNewLead({...newLead,status:e.target.value})} style={{...inp,marginBottom:10}}>
-                {Object.entries(STATUS).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}
-              </select>
-              <textarea placeholder="Research" value={newLead.research} onChange={e=>setNewLead({...newLead,research:e.target.value})} style={{...inp,height:80,resize:'vertical',marginBottom:12}}/>
               <button onClick={addLead} disabled={adding} style={{...B.p,width:'100%',opacity:adding?0.6:1}}>
                 {adding?'Đang thêm...':'+ Add Lead'}
               </button>
