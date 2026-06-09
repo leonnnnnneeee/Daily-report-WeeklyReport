@@ -184,8 +184,7 @@ async function analyzeWithGemini(prompt){
 }
 
 async function analyzeConversation(name, username, messages){
-  const msgText = messages.map(m=>'['+(m.fromMe?'TÔI':name)+']: '+m.text).join('
-');
+  const msgText = messages.map(m=>"["+(m.fromMe?"TÔI":name)+"]: "+m.text).join("\n");
   const jsonSchema = '{"is_potential_lead":true/false,"status":"interested|waiting|no_budget|follow_up_needed|closed_won|closed_lost|new","summary":"1 câu tiếng Việt","next_action":"việc cần làm","potential_score":1-10}';
   const prompt = 'Bạn là sales analyst Coincu.com (crypto PR & media).\n'+
     'Phân tích conversation với "'+name+'" (@'+username+') và trả về JSON:\n'+
