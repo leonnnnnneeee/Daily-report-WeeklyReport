@@ -281,7 +281,7 @@ export default function App() {
             <p style={{color:'#6B7280',fontSize:13,marginBottom:16}}>Hoặc dùng <strong>Auto Scan</strong> để tự quét từ Telegram + Email</p>
             <div style={{background:'#fff',border:'1px solid #E5E7EB',borderRadius:12,padding:20}}>
               <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:10}}>
-                {[['name','Tên dự án *'],['website','Website'],['sources','Nguồn'],['telegram_username','Telegram username (không có @)'],['lark_email','Lark email'],['note','Ghi chú']].map(([k,p])=>(
+                {[['website','Website'],['telegram_username','Telegram username (không có @)'],['lark_email','Lark email']].map(([k,p])=>(
                   <input key={k} placeholder={p} value={newLead[k]} onChange={e=>setNewLead({...newLead,[k]:e.target.value})} style={inp}/>
                 ))}
               </div>
