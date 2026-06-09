@@ -186,22 +186,12 @@ async function analyzeWithGemini(prompt){
 async function analyzeConversation(name, username, messages){
   const msgText = messages.map(m=>'['+(m.fromMe?'TÔI':name)+']: '+m.text).join('
 ');
-  const prompt = `Bạn là sales analyst cho Coincu.com - công ty crypto PR & media tại Việt Nam.
-Phân tích conversation Telegram với "${name}" (@${username}) và trả về JSON:
-
-{
-  "is_potential_lead": true/false,
-  "status": "interested|waiting|no_budget|follow_up_needed|closed_won|closed_lost|new",
-  "summary": "1 câu tóm tắt tình trạng bằng tiếng Việt",
-  "next_action": "hành động cụ thể cần làm tiếp theo",
-  "potential_score": 1-10
-}
-
-is_potential_lead = true nếu họ có thể là khách hàng cần dịch vụ PR/media/marketing crypto.
-Chỉ trả về JSON, không giải thích thêm.
-
-Conversation:
-${msgText}`;
+  const jsonSchema = '{"is_potential_lead":true/false,"status":"interested|waiting|no_budget|follow_up_needed|closed_won|closed_lost|new","summary":"1 câu tiếng Việt","next_action":"việc cần làm","potential_score":1-10}';
+  const prompt = 'Bạn là sales analyst Coincu.com (crypto PR & media).\n'+
+    'Phân tích conversation với "'+name+'" (@'+username+') và trả về JSON:\n'+
+    jsonSchema+'\n\n'+
+    'is_potential_lead=true nếu họ cần PR/media/marketing crypto.\n'+
+    'Chỉ trả về JSON.\n\nConversation:\n'+msgText;
 
   return await analyzeWithGemini(prompt);
 }
@@ -354,5 +344,6 @@ app.listen(PORT,'0.0.0.0',async()=>{
   const l=await db('get','leads','','order=created_at.asc');log('📋 Leads: '+l.length);
   const s=await getSession();log('🔐 Session: '+(s?'LOADED ✅':'NOT SET ❌'));
 });
+
 
 
