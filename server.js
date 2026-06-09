@@ -139,7 +139,7 @@ async function scanOneLead(leadId){
       if(analysis){
         status=analysis.status||'new';
         note=analysis.summary||'';
-        log('  🎯 '+lead.name+': '+status+' | '+note.slice(0,60));
+        log('  🎯 '+lead.name+': '+status+' (score:'+analysis.potential_score+') | '+note.slice(0,60));
       } else {
         const allText=recent.map(m=>m.text).join(' ').toLowerCase();
         const theirMsgs=recent.filter(m=>!m.fromMe);
@@ -155,8 +155,13 @@ async function scanOneLead(leadId){
       await db('patch','leads',{status,note,last_scanned:new Date().toISOString(),last_contacted:new Date().toISOString().slice(0,10)},'id=eq.'+leadId);
       log('  ✅ '+lead.name+': '+status+' | '+note.slice(0,50));
     } else {
-      await db('patch','leads',{last_scanned:new Date().toISOString()},'id=eq.'+leadId);
-      log('  ⚪ No recent messages for '+lead.name);
+      // Chưa có conversation - mark là cần reach out
+      await db('patch','leads',{
+        status:'follow_up_needed',
+        note:'Chưa có conversation - cần nhắn tin trên Telegram trước',
+        last_scanned:new Date().toISOString()
+      },'id=eq.'+leadId);
+      log('  📭 '+lead.name+': No conversation yet → follow_up_needed');
     }
     await client.disconnect();
   }catch(e){log('  ❌ scanOneLead: '+e.message);try{await client?.disconnect();}catch{}}
@@ -343,6 +348,7 @@ app.listen(PORT,'0.0.0.0',async()=>{
   const l=await db('get','leads','','order=created_at.asc');log('📋 Leads: '+l.length);
   const s=await getSession();log('🔐 Session: '+(s?'LOADED ✅':'NOT SET ❌'));
 });
+
 
 
 
