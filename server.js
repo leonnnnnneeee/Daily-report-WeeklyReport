@@ -104,6 +104,58 @@ app.get('/api/auth/status',async(req,res)=>{const s=await getSession();res.json(
 // ── SCAN ───────────────────────────────────────────
 app.post('/api/scan',async(req,res)=>{log('🔍 Scan triggered');res.json({ok:true});runScan().catch(e=>log('❌ '+e.message));});
 
+// Scan 1 lead ngay sau khi add
+app.post('/api/scan/lead/:id',async(req,res)=>{
+  log('🔍 Scanning single lead: '+req.params.id);
+  res.json({ok:true});
+  scanOneLead(req.params.id).catch(e=>log('❌ '+e.message));
+});
+
+async function scanOneLead(leadId){
+  const leads = await db('get','leads','','id=eq.'+leadId);
+  if(!leads||!leads.length){log('Lead not found: '+leadId);return;}
+  const lead = leads[0];
+  if(!lead.telegram_username){log('Lead has no telegram_username');return;}
+
+  const session = await getSession();
+  if(!session){log('⚠️ No session');return;}
+
+  const{TelegramClient}=require('telegram');const{StringSession}=require('telegram/sessions');
+  let client;
+  try{
+    client=new TelegramClient(new StringSession(session),TG_API_ID,TG_API_HASH,{connectionRetries:3});
+    await client.connect();
+    log('  🔍 Scanning @'+lead.telegram_username+'...');
+    const entity=await client.getEntity(lead.telegram_username);
+    const msgs=await client.getMessages(entity,{limit:20});
+    const cutoff=Date.now()/1000-72*3600;
+    const recent=msgs.filter(m=>m.date>cutoff&&m.message).map(m=>({fromMe:m.out,text:m.message}));
+    log('  📨 '+recent.length+' recent messages');
+
+    if(recent.length>0){
+      const allText=recent.map(m=>m.text).join(' ').toLowerCase();
+      const theirMsgs=recent.filter(m=>!m.fromMe);
+      const myMsgs=recent.filter(m=>m.fromMe);
+      const theirLast=(theirMsgs[theirMsgs.length-1]?.text||'').slice(0,150);
+      const myLast=(myMsgs[myMsgs.length-1]?.text||'').slice(0,150);
+      let status='new',note='';
+      if(/không có budget|no budget|chưa có budget/i.test(allText)){status='no_budget';note='Chưa có budget';}
+      else if(/tuần sau|tháng sau|getback|get back|bận|busy|sau nhé|later/i.test(theirLast)){status='waiting';note=theirLast;}
+      else if(/quan tâm|interested|muốn|cần|need|price|giá|báo giá|package/i.test(theirLast)){status='interested';note=theirLast;}
+      else if(/ok|được|yes|đồng ý|confirm|chốt|deal|agree/i.test(theirLast)){status='closed_won';note=theirLast;}
+      else if(!theirLast&&myLast){status='follow_up_needed';note='Chưa reply: '+myLast;}
+      else{status='waiting';note=(theirLast||myLast||'').slice(0,100);}
+
+      await db('patch','leads',{status,note,last_scanned:new Date().toISOString(),last_contacted:new Date().toISOString().slice(0,10)},'id=eq.'+leadId);
+      log('  ✅ '+lead.name+': '+status+' | '+note.slice(0,50));
+    } else {
+      await db('patch','leads',{last_scanned:new Date().toISOString()},'id=eq.'+leadId);
+      log('  ⚪ No recent messages for '+lead.name);
+    }
+    await client.disconnect();
+  }catch(e){log('  ❌ scanOneLead: '+e.message);try{await client?.disconnect();}catch{}}
+}
+
 async function scanLarkEmails(){
   log('📧 Scanning Lark Mail...');
   const token=await getLarkToken();
@@ -241,3 +293,4 @@ app.listen(PORT,'0.0.0.0',async()=>{
   const l=await db('get','leads','','order=created_at.asc');log('📋 Leads: '+l.length);
   const s=await getSession();log('🔐 Session: '+(s?'LOADED ✅':'NOT SET ❌'));
 });
+
