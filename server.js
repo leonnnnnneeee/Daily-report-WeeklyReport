@@ -69,6 +69,32 @@ app.get('/api/reports',async(req,res)=>res.json(await db('get','reports','','ord
 app.get('/api/reports/latest',async(req,res)=>{const r=await db('get','reports','','order=created_at.desc&limit=1');res.json(r[0]||null);});
 app.delete('/api/reports/:id',async(req,res)=>{await db('delete','reports',null,'id=eq.'+req.params.id);res.json({ok:true});});
 
+// ── WEEKLY EXCEL ──────────────────────────────────────
+app.get('/api/weekly-excel',async(req,res)=>{
+  const{execSync}=require('child_process');
+  const pathMod=require('path');
+  const fs=require('fs');
+  try{
+    const leads=await db('get','leads','','order=created_at.asc');
+    if(!leads.length)return res.status(400).json({error:'No leads'});
+    try{execSync('pip install openpyxl --break-system-packages -q',{timeout:30000});}catch{}
+    const tmpFile=pathMod.join('/tmp','weekly_'+Date.now()+'.xlsx');
+    const scriptPath=pathMod.join(__dirname,'scripts/generate_excel.py');
+    const leadsJson=JSON.stringify(leads);
+    fs.writeFileSync('/tmp/leads_input.json',leadsJson);
+    execSync('python3 "'+scriptPath+'" "$(cat /tmp/leads_input.json)" "'+tmpFile+'"',{timeout:30000,shell:true});
+    if(!fs.existsSync(tmpFile))return res.status(500).json({error:'File not created'});
+    const today=new Date();
+    const filename='weekly-report-'+today.toISOString().slice(0,10)+'.xlsx';
+    res.setHeader('Content-Type','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition','attachment; filename="'+filename+'"');
+    const buf=fs.readFileSync(tmpFile);
+    res.send(buf);
+    try{fs.unlinkSync(tmpFile);fs.unlinkSync('/tmp/leads_input.json');}catch{}
+    log('📊 Weekly Excel: '+leads.length+' leads exported');
+  }catch(e){log('❌ Excel: '+e.message);res.status(500).json({error:e.message});}
+});
+
 // ── LOGS ───────────────────────────────────────────
 app.get('/api/logs',(req,res)=>res.json(logs));
 
@@ -348,6 +374,7 @@ app.listen(PORT,'0.0.0.0',async()=>{
   const l=await db('get','leads','','order=created_at.asc');log('📋 Leads: '+l.length);
   const s=await getSession();log('🔐 Session: '+(s?'LOADED ✅':'NOT SET ❌'));
 });
+
 
 
 
