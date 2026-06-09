@@ -65,9 +65,10 @@ export default function App() {
   const followUps=leads.filter(l=>l.status==='follow_up_needed'||l.status==='waiting')
 
   async function addLead(){
-    if(!newLead.name.trim())return alert('Nhập tên dự án!')
+    if(!newLead.telegram_username.trim()&&!newLead.lark_email.trim())return alert('Nhập Telegram username hoặc Lark email!')
     setAdding(true)
-    const r=await fetch('/api/leads',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(newLead)})
+    const leadData={...newLead,name:newLead.telegram_username||newLead.lark_email||'Unknown'}
+    const r=await fetch('/api/leads',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(leadData)})
     const d=await r.json()
     setNewLead({name:'',website:'',sources:'',telegram_username:'',lark_email:'',research:'',note:'',status:'new'})
     await loadLeads();setAdding(false);setTab('Leads')
@@ -278,15 +279,15 @@ export default function App() {
         {tab==='Add Lead'&&(
           <div>
             <h2 style={{fontSize:20,fontWeight:700,marginBottom:6}}>Add Lead Thủ Công</h2>
-            <p style={{color:'#6B7280',fontSize:13,marginBottom:16}}>Hoặc dùng <strong>Auto Scan</strong> để tự quét từ Telegram + Email</p>
+            <p style={{color:'#6B7280',fontSize:13,marginBottom:16}}>Thêm lead → hệ thống tự quét DM và phân tích ngay</p>
             <div style={{background:'#fff',border:'1px solid #E5E7EB',borderRadius:12,padding:20}}>
-              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
-                {[['website','Website'],['telegram_username','Telegram username (không có @)'],['lark_email','Lark email']].map(([k,p])=>(
-                  <input key={k} placeholder={p} value={newLead[k]} onChange={e=>setNewLead({...newLead,[k]:e.target.value})} style={inp}/>
-                ))}
+              <div style={{display:'flex',flexDirection:'column',gap:10,marginBottom:12}}>
+                <input placeholder="Telegram username (không có @) *" value={newLead.telegram_username} onChange={e=>setNewLead({...newLead,telegram_username:e.target.value.replace('@','')})} style={inp}/>
+                <input placeholder="Lark email (nếu có)" value={newLead.lark_email} onChange={e=>setNewLead({...newLead,lark_email:e.target.value})} style={inp}/>
+                <input placeholder="Website (nếu có)" value={newLead.website} onChange={e=>setNewLead({...newLead,website:e.target.value})} style={inp}/>
               </div>
               <button onClick={addLead} disabled={adding} style={{...B.p,width:'100%',opacity:adding?0.6:1}}>
-                {adding?'Đang thêm...':'+ Add Lead'}
+                {adding?'⏳ Đang thêm + phân tích...':'+ Add Lead & Auto Scan'}
               </button>
             </div>
           </div>
