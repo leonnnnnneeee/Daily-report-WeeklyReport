@@ -133,19 +133,25 @@ async function scanOneLead(leadId){
     log('  📨 '+recent.length+' recent messages');
 
     if(recent.length>0){
-      const allText=recent.map(m=>m.text).join(' ').toLowerCase();
-      const theirMsgs=recent.filter(m=>!m.fromMe);
-      const myMsgs=recent.filter(m=>m.fromMe);
-      const theirLast=(theirMsgs[theirMsgs.length-1]?.text||'').slice(0,150);
-      const myLast=(myMsgs[myMsgs.length-1]?.text||'').slice(0,150);
-      let status='new',note='';
-      if(/không có budget|no budget|chưa có budget/i.test(allText)){status='no_budget';note='Chưa có budget';}
-      else if(/tuần sau|tháng sau|getback|get back|bận|busy|sau nhé|later/i.test(theirLast)){status='waiting';note=theirLast;}
-      else if(/quan tâm|interested|muốn|cần|need|price|giá|báo giá|package/i.test(theirLast)){status='interested';note=theirLast;}
-      else if(/ok|được|yes|đồng ý|confirm|chốt|deal|agree/i.test(theirLast)){status='closed_won';note=theirLast;}
-      else if(!theirLast&&myLast){status='follow_up_needed';note='Chưa reply: '+myLast;}
-      else{status='waiting';note=(theirLast||myLast||'').slice(0,100);}
-
+      log('  🤖 Analyzing with Gemini...');
+      const analysis = await analyzeConversation(lead.name, lead.telegram_username, recent);
+      let status='new', note='';
+      if(analysis){
+        status=analysis.status||'new';
+        note=analysis.summary||'';
+        log('  🎯 '+lead.name+': '+status+' | '+note.slice(0,60));
+      } else {
+        const allText=recent.map(m=>m.text).join(' ').toLowerCase();
+        const theirMsgs=recent.filter(m=>!m.fromMe);
+        const myMsgs=recent.filter(m=>m.fromMe);
+        const theirLast=(theirMsgs[theirMsgs.length-1]?.text||'').slice(0,150);
+        const myLast=(myMsgs[myMsgs.length-1]?.text||'').slice(0,150);
+        if(/không có budget|no budget/i.test(allText)){status='no_budget';note='Chưa có budget';}
+        else if(/tuần sau|getback|bận/i.test(theirLast)){status='waiting';note=theirLast;}
+        else if(/quan tâm|interested|giá|báo giá/i.test(theirLast)){status='interested';note=theirLast;}
+        else if(!theirLast&&myLast){status='follow_up_needed';note='Chưa reply: '+myLast;}
+        else{status='waiting';note=(theirLast||myLast||'').slice(0,100);}
+      }
       await db('patch','leads',{status,note,last_scanned:new Date().toISOString(),last_contacted:new Date().toISOString().slice(0,10)},'id=eq.'+leadId);
       log('  ✅ '+lead.name+': '+status+' | '+note.slice(0,50));
     } else {
@@ -154,6 +160,50 @@ async function scanOneLead(leadId){
     }
     await client.disconnect();
   }catch(e){log('  ❌ scanOneLead: '+e.message);try{await client?.disconnect();}catch{}}
+}
+
+// ── GEMINI AI ──────────────────────────────────────
+const GEMINI_KEY = 'AIzaSyAQ.Ab8RN6JPUmU45AV4TyoxRh43FCmMo0q2WwTK_Xfbp-hDUGFuaQ';
+
+async function analyzeWithGemini(prompt){
+  try{
+    const r = await axios.post(
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key='+GEMINI_KEY,
+      {contents:[{parts:[{text:prompt}]}]},
+      {headers:{'Content-Type':'application/json'}}
+    );
+    const text = r.data?.candidates?.[0]?.content?.parts?.[0]?.text||'';
+    // Extract JSON from response
+    const match = text.match(/\{[\s\S]*\}/);
+    if(match) return JSON.parse(match[0]);
+    return null;
+  }catch(e){
+    log('❌ Gemini: '+e.message);
+    return null;
+  }
+}
+
+async function analyzeConversation(name, username, messages){
+  const msgText = messages.map(m=>'['+(m.fromMe?'TÔI':name)+']: '+m.text).join('
+');
+  const prompt = `Bạn là sales analyst cho Coincu.com - công ty crypto PR & media tại Việt Nam.
+Phân tích conversation Telegram với "${name}" (@${username}) và trả về JSON:
+
+{
+  "is_potential_lead": true/false,
+  "status": "interested|waiting|no_budget|follow_up_needed|closed_won|closed_lost|new",
+  "summary": "1 câu tóm tắt tình trạng bằng tiếng Việt",
+  "next_action": "hành động cụ thể cần làm tiếp theo",
+  "potential_score": 1-10
+}
+
+is_potential_lead = true nếu họ có thể là khách hàng cần dịch vụ PR/media/marketing crypto.
+Chỉ trả về JSON, không giải thích thêm.
+
+Conversation:
+${msgText}`;
+
+  return await analyzeWithGemini(prompt);
 }
 
 async function scanLarkEmails(){
@@ -207,21 +257,32 @@ async function runScan(){
         if(!recent.length)continue;
         log('  💬 '+name+' (@'+username+'): '+recent.length+' msgs');
 
-        const allText=recent.map(m=>m.text).join(' ').toLowerCase();
-        const theirMsgs=recent.filter(m=>!m.fromMe);
-        const myMsgs=recent.filter(m=>m.fromMe);
-        const theirLast=(theirMsgs[theirMsgs.length-1]?.text||'').slice(0,150);
-        const myLast=(myMsgs[myMsgs.length-1]?.text||'').slice(0,150);
-
-        let status='new',note='';
-        if(/không có budget|no budget|chưa có budget/i.test(allText)){status='no_budget';note='Chưa có budget';}
-        else if(/tuần sau|tháng sau|getback|get back|bận|busy|sau nhé|later/i.test(theirLast)){status='waiting';note=theirLast;}
-        else if(/quan tâm|interested|muốn|cần|need|price|giá|báo giá|package|how much/i.test(theirLast)){status='interested';note=theirLast;}
-        else if(/ok|được|yes|đồng ý|confirm|chốt|deal|agree/i.test(theirLast)){status='closed_won';note=theirLast;}
-        else if(!theirLast&&myLast){status='follow_up_needed';note='Chưa reply: '+myLast;}
-        else{status='waiting';note=(theirLast||myLast||'').slice(0,100);}
-
-        log('  📊 '+name+': '+status);
+        log('  🤖 Analyzing with Gemini AI...');
+        const analysis = await analyzeConversation(name, username, recent);
+        
+        let status='new', note='';
+        if(analysis){
+          status = analysis.status || 'new';
+          note = analysis.summary || '';
+          log('  🎯 '+name+': '+status+' (score:'+analysis.potential_score+') | '+note.slice(0,60));
+          if(!analysis.is_potential_lead){
+            log('  ⏩ Not a potential lead, skipping');
+            continue;
+          }
+        } else {
+          // Fallback rule-based nếu Gemini lỗi
+          const allText=recent.map(m=>m.text).join(' ').toLowerCase();
+          const theirMsgs=recent.filter(m=>!m.fromMe);
+          const myMsgs=recent.filter(m=>m.fromMe);
+          const theirLast=(theirMsgs[theirMsgs.length-1]?.text||'').slice(0,150);
+          const myLast=(myMsgs[myMsgs.length-1]?.text||'').slice(0,150);
+          if(/không có budget|no budget/i.test(allText)){status='no_budget';note='Chưa có budget';}
+          else if(/tuần sau|getback|bận|busy/i.test(theirLast)){status='waiting';note=theirLast;}
+          else if(/quan tâm|interested|giá|báo giá/i.test(theirLast)){status='interested';note=theirLast;}
+          else if(!theirLast&&myLast){status='follow_up_needed';note='Chưa reply: '+myLast;}
+          else{status='waiting';note=(theirLast||myLast||'').slice(0,100);}
+          log('  📊 '+name+': '+status+' (fallback rule-based)');
+        }
         const ex=await db('get','leads','','telegram_username=eq.'+username);
         if(ex&&ex.length>0){await db('patch','leads',{status,note,last_scanned:new Date().toISOString(),last_contacted:new Date().toISOString().slice(0,10)},'id=eq.'+ex[0].id);updatedLeads++;log('  🔄 Updated: '+name);}
         else{await db('post','leads',{id:'lead_tg_'+entity.id,name,telegram_username:username,status,note,sources:'Telegram DM',website:'',lark_email:'',research:'',last_contacted:new Date().toISOString().slice(0,10),last_scanned:new Date().toISOString(),week:Math.ceil((new Date()-new Date(new Date().getFullYear(),0,1))/604800000)});newLeads++;log('  ✅ NEW: '+name+' ('+status+')');}
@@ -293,4 +354,5 @@ app.listen(PORT,'0.0.0.0',async()=>{
   const l=await db('get','leads','','order=created_at.asc');log('📋 Leads: '+l.length);
   const s=await getSession();log('🔐 Session: '+(s?'LOADED ✅':'NOT SET ❌'));
 });
+
 
