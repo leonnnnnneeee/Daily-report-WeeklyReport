@@ -31,7 +31,7 @@ function Stat({label,value,color}) {
   )
 }
 
-const TABS = ['Dashboard','Leads','Daily Report','Auto Scan','Add Lead']
+const TABS = ['Dashboard','Leads','Daily Report','Weekly Report','Auto Scan','Add Lead']
 
 export default function App() {
   const [tab,setTab]=useState('Dashboard')
@@ -269,6 +269,71 @@ export default function App() {
                 )}
               </div>
             )}
+          </div>
+        )}
+
+        {/* WEEKLY REPORT */}
+        {tab==='Weekly Report'&&(
+          <div>
+            <h2 style={{fontSize:20,fontWeight:700,marginBottom:6}}>Weekly Report</h2>
+            <p style={{color:'#6B7280',fontSize:13,marginBottom:20}}>Export Excel đúng format bảng cũ — STT, Name, Website, Sources, TG, Research, Note, Crosscheck, CEO Check</p>
+            <div style={{background:'#fff',border:'1px solid #E5E7EB',borderRadius:12,padding:24}}>
+              <div style={{display:'flex',gap:12,marginBottom:20,flexWrap:'wrap'}}>
+                <Stat label="Total Leads" value={leads.length}/>
+                <Stat label="Interested" value={counts.interested||0} color="#059669"/>
+                <Stat label="Waiting" value={counts.waiting||0} color="#D97706"/>
+                <Stat label="Follow Up" value={counts.follow_up_needed||0} color="#7C3AED"/>
+              </div>
+              <div style={{background:'#F0FDF4',border:'1px solid #BBF7D0',borderRadius:10,padding:16,marginBottom:20}}>
+                <div style={{fontWeight:600,color:'#166534',marginBottom:8}}>📊 Export Weekly Excel</div>
+                <div style={{fontSize:13,color:'#166534',marginBottom:12}}>File Excel đúng format bảng cũ với màu sắc theo status (xanh = active, hồng = no budget/lost)</div>
+                <button onClick={async()=>{
+                  try{
+                    const r=await fetch('/api/weekly-excel');
+                    if(!r.ok){const e=await r.json();alert('Lỗi: '+e.error);return;}
+                    const blob=await r.blob();
+                    const url=URL.createObjectURL(blob);
+                    const a=document.createElement('a');
+                    a.href=url;
+                    a.download='weekly-report-'+new Date().toISOString().slice(0,10)+'.xlsx';
+                    a.click();URL.revokeObjectURL(url);
+                  }catch(e){alert('Lỗi: '+e.message);}
+                }} style={{...B.p,background:'#059669',fontSize:14,padding:'10px 24px'}}>
+                  📥 Download Excel ({leads.length} leads)
+                </button>
+              </div>
+
+              {/* Preview bảng */}
+              <div style={{overflowX:'auto'}}>
+                <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
+                  <thead>
+                    <tr>
+                      {['STT','Name','Website','Sources','TG','Research','Note','Status'].map(h=>(
+                        <th key={h} style={{background:'#FFF9C4',border:'1px solid #E5E7EB',padding:'8px 10px',textAlign:'center',fontWeight:600,whiteSpace:'nowrap'}}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {leads.map((l,i)=>{
+                      const bg=l.status==='no_budget'||l.status==='closed_lost'?'#FCE4EC':
+                               l.status==='interested'||l.status==='waiting'||l.status==='follow_up_needed'?'#E8F5E9':'#fff';
+                      return(
+                        <tr key={l.id} style={{background:bg}}>
+                          <td style={{border:'1px solid #E5E7EB',padding:'6px 8px',textAlign:'center'}}>{i+1}</td>
+                          <td style={{border:'1px solid #E5E7EB',padding:'6px 8px',fontWeight:600}}>{l.name}</td>
+                          <td style={{border:'1px solid #E5E7EB',padding:'6px 8px',maxWidth:120,overflow:'hidden',textOverflow:'ellipsis'}}>{l.website}</td>
+                          <td style={{border:'1px solid #E5E7EB',padding:'6px 8px'}}>{l.sources}</td>
+                          <td style={{border:'1px solid #E5E7EB',padding:'6px 8px'}}>@{l.telegram_username}</td>
+                          <td style={{border:'1px solid #E5E7EB',padding:'6px 8px',maxWidth:200}}>{l.research?.slice(0,80)}</td>
+                          <td style={{border:'1px solid #E5E7EB',padding:'6px 8px',maxWidth:150}}>{l.note?.slice(0,60)}</td>
+                          <td style={{border:'1px solid #E5E7EB',padding:'6px 8px'}}><Badge status={l.status}/></td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         )}
 
