@@ -14,6 +14,11 @@ const SBH={'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'appl
 const logs=[];
 function log(msg){const l='['+new Date().toLocaleTimeString('vi-VN')+'] '+msg;console.log(l);logs.push(l);if(logs.length>500)logs.shift();}
 log('🚀 Coincu Sales v10');
+// Install Python deps at startup
+try{
+  require('child_process').execSync('pip install openpyxl --break-system-packages -q',{timeout:60000});
+  log('✅ openpyxl ready');
+}catch(e){log('⚠️ pip install: '+e.message);}
 
 async function db(method,table,data,query=''){
   try{const r=await axios({method,url:SB_URL+'/rest/v1/'+table+(query?'?'+query:''),headers:SBH,data});return r.data||[];}
@@ -71,27 +76,26 @@ app.delete('/api/reports/:id',async(req,res)=>{await db('delete','reports',null,
 
 // ── WEEKLY EXCEL ──────────────────────────────────────
 app.get('/api/weekly-excel',async(req,res)=>{
-  const{execSync}=require('child_process');
+  const{execFileSync}=require('child_process');
   const pathMod=require('path');
   const fs=require('fs');
   try{
     const leads=await db('get','leads','','order=created_at.asc');
     if(!leads.length)return res.status(400).json({error:'No leads'});
-    try{execSync('pip install openpyxl --break-system-packages -q',{timeout:30000});}catch{}
     const tmpFile=pathMod.join('/tmp','weekly_'+Date.now()+'.xlsx');
+    const inputFile=pathMod.join('/tmp','leads_'+Date.now()+'.json');
     const scriptPath=pathMod.join(__dirname,'scripts/generate_excel.py');
-    const leadsJson=JSON.stringify(leads);
-    fs.writeFileSync('/tmp/leads_input.json',leadsJson);
-    execSync('python3 "'+scriptPath+'" "$(cat /tmp/leads_input.json)" "'+tmpFile+'"',{timeout:30000,shell:true});
+    // Write leads to temp JSON file (safe - no shell injection)
+    fs.writeFileSync(inputFile,JSON.stringify(leads));
+    execFileSync('python3',[scriptPath,inputFile,tmpFile],{timeout:30000});
     if(!fs.existsSync(tmpFile))return res.status(500).json({error:'File not created'});
     const today=new Date();
     const filename='weekly-report-'+today.toISOString().slice(0,10)+'.xlsx';
     res.setHeader('Content-Type','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition','attachment; filename="'+filename+'"');
-    const buf=fs.readFileSync(tmpFile);
-    res.send(buf);
-    try{fs.unlinkSync(tmpFile);fs.unlinkSync('/tmp/leads_input.json');}catch{}
-    log('📊 Weekly Excel: '+leads.length+' leads exported');
+    res.send(fs.readFileSync(tmpFile));
+    try{fs.unlinkSync(tmpFile);fs.unlinkSync(inputFile);}catch{}
+    log('📊 Weekly Excel: '+leads.length+' leads');
   }catch(e){log('❌ Excel: '+e.message);res.status(500).json({error:e.message});}
 });
 
@@ -194,12 +198,26 @@ async function scanOneLead(leadId){
 }
 
 // ── GEMINI AI ──────────────────────────────────────
-const GEMINI_KEY = 'AIzaSyAQ.Ab8RN6JPUmU45AV4TyoxRh43FCmMo0q2WwTK_Xfbp-hDUGFuaQ';
+let GEMINI_KEY = process.env.GEMINI_API_KEY || '';
+// Load từ Supabase nếu không có trong env
+async function loadGeminiKey(){
+  if(GEMINI_KEY&&GEMINI_KEY.length>10)return GEMINI_KEY;
+  try{
+    const r=await axios.get(SB_URL+'/rest/v1/sessions?key=eq.gemini_key',{headers:SBH});
+    if(r.data&&r.data[0]&&r.data[0].value&&r.data[0].value.length>10){
+      GEMINI_KEY=r.data[0].value;
+      return GEMINI_KEY;
+    }
+  }catch(e){}
+  return null;
+}
 
 async function analyzeWithGemini(prompt){
+  const key = await loadGeminiKey();
+  if(!key){log('⚠️ No Gemini key');return null;}
   try{
     const r = await axios.post(
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key='+GEMINI_KEY,
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key='+key,
       {contents:[{parts:[{text:prompt}]}]},
       {headers:{'Content-Type':'application/json'}}
     );
@@ -374,6 +392,7 @@ app.listen(PORT,'0.0.0.0',async()=>{
   const l=await db('get','leads','','order=created_at.asc');log('📋 Leads: '+l.length);
   const s=await getSession();log('🔐 Session: '+(s?'LOADED ✅':'NOT SET ❌'));
 });
+
 
 
 
