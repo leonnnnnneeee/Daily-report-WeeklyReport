@@ -67,9 +67,15 @@ export default function App() {
   async function addLead(){
     if(!newLead.name.trim())return alert('Nhập tên dự án!')
     setAdding(true)
-    await fetch('/api/leads',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(newLead)})
+    const r=await fetch('/api/leads',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(newLead)})
+    const d=await r.json()
     setNewLead({name:'',website:'',sources:'',telegram_username:'',lark_email:'',research:'',note:'',status:'new'})
     await loadLeads();setAdding(false);setTab('Leads')
+    // Tự động scan lead mới nếu có telegram_username
+    if(d.ok && d.lead?.id && newLead.telegram_username){
+      await fetch('/api/scan/lead/'+d.lead.id, {method:'POST'})
+      setTimeout(loadLeads, 5000) // reload sau 5s để thấy status mới
+    }
   }
 
   async function deleteLead(id){
