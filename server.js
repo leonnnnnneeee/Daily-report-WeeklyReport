@@ -342,7 +342,7 @@ async function runScan(){
         if(analysis){
           status = analysis.status || 'new';
           note = analysis.summary || '';
-          log('  🎯 '+name+': '+status+' ('+analysis.potential_score+'/10) | '+note.slice(0,80));
+          log('  🎯 '+name+': '+status+' ('+(analysis&&analysis.potential_score||'?')+'/10) | '+note.slice(0,80));
           if(!analysis.is_potential_lead){
             log('  ⏩ Not a potential lead, skipping');
             continue;
@@ -362,8 +362,8 @@ async function runScan(){
           log('  📊 '+name+': '+status+' (fallback rule-based)');
         }
         const ex=await db('get','leads','','telegram_username=eq.'+username);
-        if(ex&&ex.length>0){const fullNote='['+analysis.potential_score+'/10] '+note;await db('patch','leads',{status,note:fullNote,last_scanned:new Date().toISOString(),last_contacted:new Date().toISOString().slice(0,10)},'id=eq.'+ex[0].id);updatedLeads++;log('  🔄 Updated: '+name+' | '+fullNote.slice(0,60));}
-        else{const fullNote='['+analysis.potential_score+'/10] '+note;await db('post','leads',{id:'lead_tg_'+entity.id,name,telegram_username:username,status,note:fullNote,sources:'Telegram DM',website:'',lark_email:'',research:'',last_contacted:new Date().toISOString().slice(0,10),last_scanned:new Date().toISOString(),week:Math.ceil((new Date()-new Date(new Date().getFullYear(),0,1))/604800000)});newLeads++;log('  ✅ NEW: '+name+' ('+status+')');}
+        if(ex&&ex.length>0){const fullNote='['+(analysis&&analysis.potential_score||'?')+'/10] '+note;await db('patch','leads',{status,note:fullNote,last_scanned:new Date().toISOString(),last_contacted:new Date().toISOString().slice(0,10)},'id=eq.'+ex[0].id);updatedLeads++;log('  🔄 Updated: '+name+' | '+fullNote.slice(0,60));}
+        else{const fullNote='['+(analysis&&analysis.potential_score||'?')+'/10] '+note;await db('post','leads',{id:'lead_tg_'+entity.id,name,telegram_username:username,status,note:fullNote,sources:'Telegram DM',website:'',lark_email:'',research:'',last_contacted:new Date().toISOString().slice(0,10),last_scanned:new Date().toISOString(),week:Math.ceil((new Date()-new Date(new Date().getFullYear(),0,1))/604800000)});newLeads++;log('  ✅ NEW: '+name+' ('+status+')');}
         await new Promise(r=>setTimeout(r,500));
       }catch(e){log('  ❌ TG: '+e.message);}
     }
@@ -432,6 +432,7 @@ app.listen(PORT,'0.0.0.0',async()=>{
   const l=await db('get','leads','','order=created_at.asc');log('📋 Leads: '+l.length);
   const s=await getSession();log('🔐 Session: '+(s?'LOADED ✅':'NOT SET ❌'));
 });
+
 
 
 
