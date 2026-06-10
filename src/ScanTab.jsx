@@ -76,7 +76,10 @@ export default function ScanTab({ leads }) {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 20 }}>
         <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 10, padding: 16 }}>
           <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 4 }}>Telegram</div>
-          <div style={{ fontWeight: 700, color: authStatus ? '#059669' : '#DC2626' }}>{authStatus ? '🟢 Connected' : '🔴 Not connected'}</div>
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+            <div style={{ fontWeight: 700, color: authStatus ? '#059669' : '#DC2626' }}>{authStatus ? '🟢 Connected' : '🔴 Not connected'}</div>
+            {authStatus && <button onClick={()=>{setAuthStatus(false);setOtpSent(false);setPhone('');setOtp('');setAuthMsg('');}} style={{ fontSize:11,padding:'3px 8px',border:'1px solid #D1D5DB',borderRadius:5,background:'#fff',cursor:'pointer',color:'#6B7280' }}>🔄 Đổi SĐT</button>}
+          </div>
         </div>
         <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 10, padding: 16 }}>
           <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 4 }}>Leads found</div>
@@ -144,3 +147,4 @@ export default function ScanTab({ leads }) {
     </div>
   )
 }
+
