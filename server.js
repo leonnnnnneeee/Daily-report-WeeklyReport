@@ -255,14 +255,23 @@ async function analyzeWithGemini(prompt){
   const key = await loadGeminiKey();
   if(!key){log('⚠️ No Gemini key');return null;}
   try{
-    const model = key.startsWith('AQ.') ? 'gemini-2.0-flash' : 'gemini-1.5-flash';
-    const r = await axios.post(
-      'https://generativelanguage.googleapis.com/v1beta/models/'+model+':generateContent?key='+key,
-      {contents:[{parts:[{text:prompt}]}]},
-      {headers:{'Content-Type':'application/json'}}
-    );
+    let r;
+    if(key.startsWith('AQ.')){
+      // OAuth2 Bearer token format
+      r = await axios.post(
+        'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent',
+        {contents:[{parts:[{text:prompt}]}]},
+        {headers:{'Content-Type':'application/json','Authorization':'Bearer '+key}}
+      );
+    } else {
+      // API key format (AIzaSy...)
+      r = await axios.post(
+        'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key='+key,
+        {contents:[{parts:[{text:prompt}]}]},
+        {headers:{'Content-Type':'application/json'}}
+      );
+    }
     const text = r.data?.candidates?.[0]?.content?.parts?.[0]?.text||'';
-    // Extract JSON from response
     const match = text.match(/\{[\s\S]*\}/);
     if(match) return JSON.parse(match[0]);
     return null;
@@ -477,6 +486,7 @@ app.listen(PORT,'0.0.0.0',async()=>{
   const l=await db('get','leads','','order=created_at.asc');log('📋 Leads: '+l.length);
   const s=await getSession();log('🔐 Session: '+(s?'LOADED ✅':'NOT SET ❌'));
 });
+
 
 
 
