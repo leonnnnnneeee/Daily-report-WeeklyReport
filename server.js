@@ -313,8 +313,19 @@ async function generateReport(newLeads,updatedLeads){
   const today=new Date();
   const d=today.getDate()+'-'+(today.getMonth()+1);
   
-  const activeLeads=leads.filter(l=>l.status!=='new');
-  const fu=leads.filter(l=>l.status==='follow_up_needed'||l.status==='waiting');
+  // Chỉ đưa vào report những leads có hoạt động thực sự
+  // Ưu tiên: interested, follow_up_needed, no_budget, closed
+  // waiting chỉ hiện nếu có note cụ thể (không phải fallback)
+  const activeLeads=leads.filter(l=>{
+    if(l.status==='new')return false;
+    if(l.status==='interested'||l.status==='follow_up_needed'||l.status==='no_budget'||l.status==='closed_won'||l.status==='closed_lost')return true;
+    if(l.status==='waiting'){
+      const note=l.note||'';
+      return note&&note!=='đang trao đổi'&&note!=='đang đợi phản hồi'&&note.length>5;
+    }
+    return false;
+  });
+  const fu=leads.filter(l=>l.status==='follow_up_needed');
   
   log('📋 Report: '+activeLeads.length+' leads, '+fu.length+' follow ups');
 
@@ -378,3 +389,4 @@ app.listen(PORT,'0.0.0.0',async()=>{
   const s=await getSession();log('🔐 Session: '+(s?'LOADED ✅':'NOT SET ❌'));
   const k=await getOpenAIKey();log('🤖 OpenAI: '+(k?'READY ✅':'NOT SET ❌'));
 });
+
