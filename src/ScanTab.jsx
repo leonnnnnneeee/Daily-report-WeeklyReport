@@ -9,6 +9,8 @@ export default function ScanTab({ leads }) {
   const [otpSent, setOtpSent] = useState(false)
   const [authLoading, setAuthLoading] = useState(false)
   const [authMsg, setAuthMsg] = useState('')
+  const [need2fa, setNeed2fa] = useState(false)
+  const [password, setPassword] = useState('')
   const [apiKey, setApiKey] = useState('')
   const [apiKeyMsg, setApiKeyMsg] = useState('')
   const logRef = useRef(null)
@@ -61,13 +63,18 @@ export default function ScanTab({ leads }) {
     const r = await fetch('/api/auth/verify-otp', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phone, code: otp })
+      body: JSON.stringify({ phone, code: otp, password: need2fa ? password : '' })
     })
     const d = await r.json()
     if (d.ok) {
       setAuthStatus(true)
       setAuthMsg('✅ Kết nối thành công! Session lưu vĩnh viễn.')
-    } else setAuthMsg('❌ ' + d.message)
+    } else if (d.need2fa) {
+      setNeed2fa(true)
+      setAuthMsg('🔐 Nhập mật khẩu 2FA của Telegram')
+    } else {
+      setAuthMsg('❌ ' + d.message)
+    }
     setAuthLoading(false)
   }
 
@@ -145,12 +152,23 @@ export default function ScanTab({ leads }) {
           ) : (
             <div>
               <div style={{ fontSize: 12, color: '#92400E', marginBottom: 8 }}>✅ OTP đã gửi — mở Telegram xem code</div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <input value={otp} onChange={e => setOtp(e.target.value)} placeholder="Nhập OTP code" style={{ ...inp, flex: 1, textAlign: 'center', letterSpacing: 6, fontSize: 18 }} />
-                <button onClick={verifyOtp} disabled={authLoading || !otp.trim()} style={{ ...btn('#059669'), opacity: authLoading || !otp.trim() ? 0.5 : 1 }}>
+              <div style={{ display: 'flex', gap: 8, marginBottom: need2fa ? 8 : 0 }}>
+                <input value={otp} onChange={e => setOtp(e.target.value)} placeholder="Nhập OTP code" style={{ ...inp, flex: 1, textAlign: 'center', letterSpacing: 6, fontSize: 18 }} disabled={need2fa} />
+                {!need2fa && <button onClick={verifyOtp} disabled={authLoading || !otp.trim()} style={{ ...btn('#059669'), opacity: authLoading || !otp.trim() ? 0.5 : 1 }}>
                   {authLoading ? '⏳' : 'Xác nhận'}
-                </button>
+                </button>}
               </div>
+              {need2fa && (
+                <div>
+                  <div style={{ fontSize: 12, color: '#92400E', marginBottom: 6 }}>🔐 Account có 2FA — nhập mật khẩu Telegram:</div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Mật khẩu 2FA Telegram" style={{ ...inp, flex: 1 }} />
+                    <button onClick={verifyOtp} disabled={authLoading || !password.trim()} style={{ ...btn('#059669'), opacity: authLoading || !password.trim() ? 0.5 : 1 }}>
+                      {authLoading ? '⏳' : 'Xác nhận'}
+                    </button>
+                  </div>
+                </div>
+              )}
               <button onClick={() => { setOtpSent(false); setPhone(''); setOtp('') }} style={{ fontSize: 12, color: '#6B7280', background: 'none', border: 'none', cursor: 'pointer', marginTop: 8, padding: 0 }}>
                 ← Nhập lại SĐT
               </button>
