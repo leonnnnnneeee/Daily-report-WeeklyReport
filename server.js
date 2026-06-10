@@ -204,11 +204,21 @@ async function scanOneLead(leadId){
         const myMsgs=recent.filter(m=>m.fromMe);
         const theirLast=(theirMsgs[theirMsgs.length-1]?.text||'').slice(0,150);
         const myLast=(myMsgs[myMsgs.length-1]?.text||'').slice(0,150);
-        if(/không có budget|no budget/i.test(allText)){status='no_budget';note='Chưa có budget';}
-        else if(/tuần sau|getback|bận/i.test(theirLast)){status='waiting';note=theirLast;}
-        else if(/quan tâm|interested|giá|báo giá/i.test(theirLast)){status='interested';note=theirLast;}
-        else if(!theirLast&&myLast){status='follow_up_needed';note='Chưa reply: '+myLast;}
-        else{status='waiting';note=(theirLast||myLast||'').slice(0,100);}
+        if(/không có budget|no budget|chưa có budget/i.test(allText)){status='no_budget';note='Chưa có budget';}
+        else if(/đã chốt|deal done|confirmed|paid/i.test(allText)){status='closed_won';note='Đã chốt deal';}
+        else if(/không quan tâm|not interested|no thanks/i.test(allText)){status='closed_lost';note='Không quan tâm';}
+        else if(/quan tâm|interested|price|giá|báo giá|package|how much/i.test(allText)){
+          status='interested';
+          const m=theirMsgs.find(function(m){return /quan tâm|interested|price|giá|package/i.test(m.text);});
+          note=m?m.text.slice(0,100):'Đang quan tâm dịch vụ';
+        }
+        else if(/tuần sau|getback|bận|busy|later|will check/i.test(allText)){status='waiting';note=theirLast.slice(0,100)||'Hẹn lại sau';}
+        else if(theirMsgs.length===0){status='follow_up_needed';note='Chưa reply: '+myLast.slice(0,80);}
+        else{
+          status='waiting';
+          var best=theirMsgs.slice().sort(function(a,b){return b.text.length-a.text.length;})[0];
+          note=best?best.text.slice(0,100):theirLast.slice(0,100);
+        }
       }
       await db('patch','leads',{status,note,last_scanned:new Date().toISOString(),last_contacted:new Date().toISOString().slice(0,10)},'id=eq.'+leadId);
       log('  ✅ '+lead.name+': '+status+' | '+note.slice(0,50));
@@ -350,18 +360,45 @@ async function runScan(){
             continue;
           }
         } else {
-          // Fallback rule-based nếu Gemini lỗi
+          // Fallback rule-based - phân tích toàn bộ conversation
           const allText=recent.map(m=>m.text).join(' ').toLowerCase();
           const theirMsgs=recent.filter(m=>!m.fromMe);
           const myMsgs=recent.filter(m=>m.fromMe);
           const theirLast=(theirMsgs[theirMsgs.length-1]?.text||'').slice(0,150);
           const myLast=(myMsgs[myMsgs.length-1]?.text||'').slice(0,150);
-          if(/không có budget|no budget/i.test(allText)){status='no_budget';note='Chưa có budget';}
-          else if(/tuần sau|getback|bận|busy/i.test(theirLast)){status='waiting';note=theirLast;}
-          else if(/quan tâm|interested|giá|báo giá/i.test(theirLast)){status='interested';note=theirLast;}
-          else if(!theirLast&&myLast){status='follow_up_needed';note='Chưa reply: '+myLast;}
-          else{status='waiting';note=(theirLast||myLast||'').slice(0,100);}
-          log('  📊 '+name+': '+status+' (fallback rule-based)');
+          
+          // Phân tích status dựa trên toàn bộ nội dung
+          if(/không có budget|no budget|chưa có budget|hết budget/i.test(allText)){
+            status='no_budget';
+            note='Chưa có budget';
+          } else if(/đã chốt|closed|deal done|confirmed|paid|invoice/i.test(allText)){
+            status='closed_won';
+            note='Đã chốt deal';
+          } else if(/không quan tâm|not interested|no thanks|decline/i.test(allText)){
+            status='closed_lost';
+            note='Không quan tâm';
+          } else if(/quan tâm|interested|muốn biết thêm|tell me more|price|giá|báo giá|package|how much|chi phí/i.test(allText)){
+            status='interested';
+            // Tóm tắt nội dung quan tâm
+            const interestMsg = theirMsgs.find(m=>/quan tâm|interested|price|giá|package|how much/i.test(m.text));
+            note = interestMsg ? interestMsg.text.slice(0,100) : 'Đang quan tâm dịch vụ';
+          } else if(/tuần sau|tháng sau|get back|getback|later|bận|busy|sau nhé|will check/i.test(allText)){
+            status='waiting';
+            note = theirLast.slice(0,100) || 'Hẹn lại sau';
+          } else if(theirMsgs.length===0){
+            status='follow_up_needed';
+            note = 'Chưa reply: '+(myLast.slice(0,80)||'cần follow up');
+          } else if(myMsgs.length===0){
+            status='new';
+            note = 'Lead nhắn tin: '+theirLast.slice(0,80);
+          } else {
+            // Có qua lại nhưng chưa rõ tình trạng
+            status='waiting';
+            // Lấy tin nhắn có nội dung nhất (dài nhất)
+            const mostMeaningful = [...theirMsgs].sort((a,b)=>b.text.length-a.text.length)[0];
+            note = mostMeaningful ? mostMeaningful.text.slice(0,100) : theirLast.slice(0,100);
+          }
+          log('  📊 '+name+': '+status+' | '+note.slice(0,60)+' (rule-based)');
         }
         const ex=await db('get','leads','','telegram_username=eq.'+username);
         if(ex&&ex.length>0){const fullNote='['+(analysis&&analysis.potential_score||'?')+'/10] '+note;await db('patch','leads',{status,note:fullNote,last_scanned:new Date().toISOString(),last_contacted:new Date().toISOString().slice(0,10)},'id=eq.'+ex[0].id);updatedLeads++;log('  🔄 Updated: '+name+' | '+fullNote.slice(0,60));}
@@ -441,6 +478,7 @@ app.listen(PORT,'0.0.0.0',async()=>{
   const l=await db('get','leads','','order=created_at.asc');log('📋 Leads: '+l.length);
   const s=await getSession();log('🔐 Session: '+(s?'LOADED ✅':'NOT SET ❌'));
 });
+
 
 
 
