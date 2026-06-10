@@ -185,7 +185,7 @@ async function scanOneLead(leadId){
     log('  🔍 Scanning @'+lead.telegram_username+'...');
     const entity=await client.getEntity(lead.telegram_username);
     const msgs=await client.getMessages(entity,{limit:50});
-    const cutoff=Date.now()/1000-30*24*3600; // 30 ngày
+    const cutoff=Date.now()/1000-24*3600; // 24h
     const recent=msgs.filter(m=>m.date>cutoff&&m.message).map(m=>({fromMe:m.out,text:m.message}));
     log('  📨 '+recent.length+' recent messages');
 
@@ -324,7 +324,7 @@ async function runScan(){
     const dialogs=await client.getDialogs({limit:200});
     const dms=dialogs.filter(d=>d.isUser&&!d.entity.bot);
     log('👤 DMs: '+dms.length);
-    const cutoff=Date.now()/1000-30*24*3600;
+    const cutoff=Date.now()/1000-24*3600;
     for(const dialog of dms){
       try{
         const entity=dialog.entity;
@@ -432,6 +432,7 @@ app.listen(PORT,'0.0.0.0',async()=>{
   const l=await db('get','leads','','order=created_at.asc');log('📋 Leads: '+l.length);
   const s=await getSession();log('🔐 Session: '+(s?'LOADED ✅':'NOT SET ❌'));
 });
+
 
 
 
