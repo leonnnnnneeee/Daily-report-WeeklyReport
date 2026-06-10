@@ -31,6 +31,30 @@ function Stat({label,value,color}) {
   )
 }
 
+function NoteEdit({lead, onSave}){
+  const [editing,setEditing]=useState(false)
+  const [val,setVal]=useState(lead.note||'')
+  if(!editing) return (
+    <div style={{fontSize:12,marginBottom:6,display:'flex',alignItems:'center',gap:6}}>
+      <span style={{background:'#F9FAFB',padding:'4px 10px',borderRadius:6,flex:1,color:val?'#374151':'#9CA3AF'}}>
+        📝 {val||'Chưa có note — click để thêm'}
+      </span>
+      <button onClick={()=>setEditing(true)} style={{fontSize:11,padding:'3px 8px',border:'1px solid #D1D5DB',borderRadius:5,background:'#fff',cursor:'pointer',color:'#6B7280',flexShrink:0}}>✏️</button>
+    </div>
+  )
+  return (
+    <div style={{marginBottom:6,display:'flex',gap:6}}>
+      <input value={val} onChange={e=>setVal(e.target.value)}
+        onKeyDown={e=>{if(e.key==='Enter'){onSave(lead.id,val);setEditing(false);}if(e.key==='Escape')setEditing(false);}}
+        placeholder="Ghi tình trạng outreach... (Enter để lưu)"
+        style={{fontSize:12,padding:'4px 10px',border:'1px solid #7C3AED',borderRadius:6,flex:1,background:'#fff'}}
+        autoFocus/>
+      <button onClick={()=>{onSave(lead.id,val);setEditing(false);}} style={{fontSize:11,padding:'4px 10px',border:'none',borderRadius:6,background:'#7C3AED',color:'#fff',cursor:'pointer',flexShrink:0}}>Lưu</button>
+      <button onClick={()=>setEditing(false)} style={{fontSize:11,padding:'4px 8px',border:'1px solid #D1D5DB',borderRadius:6,background:'#fff',cursor:'pointer',color:'#6B7280',flexShrink:0}}>✕</button>
+    </div>
+  )
+}
+
 const TABS = ['Dashboard','Leads','Daily Report','Weekly Report','Auto Scan','Add Lead']
 
 export default function App() {
@@ -246,7 +270,10 @@ export default function App() {
                       {l.sources&&<span style={{fontSize:11,background:'#F3F4F6',padding:'2px 8px',borderRadius:4,color:'#6B7280'}}>{l.sources}</span>}
                     </div>
                     {l.research&&<div style={{fontSize:13,color:'#6B7280',marginBottom:6,lineHeight:1.5}}>{l.research}</div>}
-                    {l.note&&<div style={{fontSize:12,background:'#F9FAFB',padding:'4px 10px',borderRadius:6,display:'inline-block',marginBottom:6}}>📝 {l.note}</div>}
+                    <NoteEdit lead={l} onSave={async(id,note)=>{
+                      await fetch('/api/leads/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({note})});
+                      await loadLeads();
+                    }}/>
                     <div style={{fontSize:12,color:'#9CA3AF',display:'flex',gap:12,flexWrap:'wrap'}}>
                       {l.telegram_username&&<span>📱 @{l.telegram_username}</span>}
                       {l.lark_email&&<span>📧 {l.lark_email}</span>}
