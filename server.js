@@ -112,32 +112,45 @@ app.post('/api/settings/apikey',async(req,res)=>{
 });
 
 // ── AUTH ───────────────────────────────────────────
+let pendingPhoneCodeHash=null;
 app.post('/api/auth/send-otp',async(req,res)=>{
   const{TelegramClient}=require('telegram');const{StringSession}=require('telegram/sessions');
   log('📱 Sending OTP to '+req.body.phone);
-  try{const client=new TelegramClient(new StringSession(''),TG_API_ID,TG_API_HASH,{connectionRetries:5});
-    await client.connect();await client.sendCode({apiId:TG_API_ID,apiHash:TG_API_HASH},req.body.phone);
-    pendingClient=client;log('✅ OTP sent!');res.json({ok:true});}
-  catch(e){log('❌ '+e.message);res.json({ok:false,message:e.message});}
+  try{
+    // Disconnect old client nếu có
+    if(pendingClient){try{await pendingClient.disconnect();}catch{}}
+    const client=new TelegramClient(new StringSession(''),TG_API_ID,TG_API_HASH,{connectionRetries:5});
+    await client.connect();
+    const result=await client.sendCode({apiId:TG_API_ID,apiHash:TG_API_HASH},req.body.phone);
+    pendingClient=client;
+    pendingPhoneCodeHash=result.phoneCodeHash;
+    log('✅ OTP sent! Hash: '+pendingPhoneCodeHash.slice(0,10)+'...');
+    res.json({ok:true});
+  }catch(e){log('❌ '+e.message);res.json({ok:false,message:e.message});}
 });
 app.post('/api/auth/verify-otp',async(req,res)=>{
-  const{TelegramClient}=require('telegram');const{StringSession}=require('telegram/sessions');
-  log('🔑 Verifying OTP...');
-  try{let client=pendingClient||new TelegramClient(new StringSession(''),TG_API_ID,TG_API_HASH,{connectionRetries:5});
-    if(!pendingClient)await client.connect();
-    await client.start({
-      phoneNumber:()=>Promise.resolve(req.body.phone),
-      phoneCode:()=>Promise.resolve(req.body.code),
-      password:()=>Promise.resolve(req.body.password||''),
-      onError:(e)=>{throw e}
-    });
-    await saveSession(client.session.save());pendingClient=null;
-    log('✅ Session saved!');
-    res.json({ok:true});}
-  catch(e){
-    log('❌ '+e.message);
-    if(e.message==='2FA_REQUIRED'||e.message.includes('Password')||e.message.includes('password')){
-      res.json({ok:false,need2fa:true,message:'Tài khoản có 2FA - nhập mật khẩu Telegram'});
+  log('🔑 Verifying OTP: '+req.body.code+' | pendingClient: '+(pendingClient?'YES':'NO'));
+  if(!pendingClient){
+    log('❌ No pending client - need to send OTP first');
+    return res.json({ok:false,message:'Hết phiên - vui lòng bấm Gửi OTP lại'});
+  }
+  try{
+    // Dùng signIn trực tiếp thay vì start()
+    const{Api}=require('telegram');
+    await pendingClient.invoke(new Api.auth.SignIn({
+      phoneNumber: req.body.phone,
+      phoneCodeHash: pendingPhoneCodeHash,
+      phoneCode: req.body.code
+    }));
+    await saveSession(pendingClient.session.save());
+    pendingClient=null; pendingPhoneCodeHash=null;
+    log('✅ Signed in successfully!');
+    res.json({ok:true});
+  }catch(e){
+    log('❌ SignIn error: '+e.message);
+    // Nếu lỗi SESSION_PASSWORD_NEEDED thì cần 2FA
+    if(e.message.includes('SESSION_PASSWORD_NEEDED')){
+      res.json({ok:false,message:'Account có 2FA - vui lòng tắt 2FA trong Telegram rồi thử lại'});
     } else {
       res.json({ok:false,message:e.message});
     }
@@ -406,6 +419,7 @@ app.listen(PORT,'0.0.0.0',async()=>{
   const l=await db('get','leads','','order=created_at.asc');log('📋 Leads: '+l.length);
   const s=await getSession();log('🔐 Session: '+(s?'LOADED ✅':'NOT SET ❌'));
 });
+
 
 
 
