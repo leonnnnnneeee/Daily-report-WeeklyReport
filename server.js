@@ -261,21 +261,25 @@ async function analyzeWithGemini(prompt){
 
 async function analyzeConversation(name, username, messages){
   const msgText = messages.map(m=>"["+(m.fromMe?"TÔI":name)+"]: "+m.text).join("\n");
-  const prompt = 'Bạn là sales analyst Coincu.com (công ty crypto PR & media tại Việt Nam).\n'+
-    'Đọc TOÀN BỘ hội thoại dưới đây với "'+name+'" (@'+username+') và phân tích:\n\n'+
-    'Conversation ('+messages.length+' tin nhắn):\n'+msgText+'\n\n'+
-    'Dựa trên TOÀN BỘ nội dung hội thoại, trả về JSON:\n'+
+  const prompt = 'Bạn là sales analyst cho Coincu.com - công ty cung cấp dịch vụ crypto PR & media (CoinMarketCap, CoinGecko, Cointelegraph...).\n\n'+
+    'Phân tích TOÀN BỘ hội thoại với "'+name+'" (@'+username+') gồm '+messages.length+' tin nhắn:\n\n'+
+    msgText+'\n\n'+
+    'Hãy phân tích kỹ và trả về JSON (chỉ JSON, không text khác):\n'+
     '{\n'+
     '  "is_potential_lead": true/false,\n'+
     '  "status": "interested|waiting|no_budget|follow_up_needed|closed_won|closed_lost|new",\n'+
-    '  "summary": "tóm tắt 1-2 câu tiếng Việt về tình trạng thực tế",\n'+
-    '  "next_action": "hành động cụ thể cần làm tiếp theo",\n'+
-    '  "potential_score": 1-10\n'+
+    '  "potential_score": 1-10,\n'+
+    '  "note": "Ghi chú chi tiết: [tên dự án nếu biết] - [tình trạng hiện tại cụ thể] - [điểm tiềm năng và lý do]",\n'+
+    '  "summary": "1 câu tóm tắt ngắn gọn bằng tiếng Việt",\n'+
+    '  "next_action": "Hành động cụ thể cần làm: [gửi gì / hỏi gì / follow up khi nào]"\n'+
     '}\n\n'+
-    'Lưu ý:\n'+
-    '- is_potential_lead=true nếu họ là dự án crypto/Web3 cần PR/media/marketing\n'+
-    '- Phân tích DỰA TRÊN NỘI DUNG THỰC TẾ của hội thoại, không đoán mò\n'+
-    '- Chỉ trả về JSON, không giải thích thêm';
+    'Hướng dẫn chấm điểm tiềm năng (1-10):\n'+
+    '- 8-10: Quan tâm rõ ràng, đang hỏi giá/dịch vụ, có budget\n'+
+    '- 5-7: Quan tâm nhưng còn do dự, chưa rõ budget\n'+
+    '- 3-4: Chưa có budget / đang bận / hẹn sau\n'+
+    '- 1-2: Không quan tâm hoặc không phải crypto project\n\n'+
+    'Lưu ý: is_potential_lead=true nếu họ là project crypto/Web3 hoặc cần PR/media/marketing.\n'+
+    'Phân tích DỰA TRÊN NỘI DUNG THỰC TẾ, không đoán mò.';
 
   return await analyzeWithGemini(prompt);
 }
@@ -338,7 +342,7 @@ async function runScan(){
         if(analysis){
           status = analysis.status || 'new';
           note = analysis.summary || '';
-          log('  🎯 '+name+': '+status+' (score:'+analysis.potential_score+') | '+note.slice(0,60));
+          log('  🎯 '+name+': '+status+' ('+analysis.potential_score+'/10) | '+note.slice(0,80));
           if(!analysis.is_potential_lead){
             log('  ⏩ Not a potential lead, skipping');
             continue;
@@ -358,8 +362,8 @@ async function runScan(){
           log('  📊 '+name+': '+status+' (fallback rule-based)');
         }
         const ex=await db('get','leads','','telegram_username=eq.'+username);
-        if(ex&&ex.length>0){await db('patch','leads',{status,note,last_scanned:new Date().toISOString(),last_contacted:new Date().toISOString().slice(0,10)},'id=eq.'+ex[0].id);updatedLeads++;log('  🔄 Updated: '+name);}
-        else{await db('post','leads',{id:'lead_tg_'+entity.id,name,telegram_username:username,status,note,sources:'Telegram DM',website:'',lark_email:'',research:'',last_contacted:new Date().toISOString().slice(0,10),last_scanned:new Date().toISOString(),week:Math.ceil((new Date()-new Date(new Date().getFullYear(),0,1))/604800000)});newLeads++;log('  ✅ NEW: '+name+' ('+status+')');}
+        if(ex&&ex.length>0){const fullNote='['+analysis.potential_score+'/10] '+note;await db('patch','leads',{status,note:fullNote,last_scanned:new Date().toISOString(),last_contacted:new Date().toISOString().slice(0,10)},'id=eq.'+ex[0].id);updatedLeads++;log('  🔄 Updated: '+name+' | '+fullNote.slice(0,60));}
+        else{const fullNote='['+analysis.potential_score+'/10] '+note;await db('post','leads',{id:'lead_tg_'+entity.id,name,telegram_username:username,status,note:fullNote,sources:'Telegram DM',website:'',lark_email:'',research:'',last_contacted:new Date().toISOString().slice(0,10),last_scanned:new Date().toISOString(),week:Math.ceil((new Date()-new Date(new Date().getFullYear(),0,1))/604800000)});newLeads++;log('  ✅ NEW: '+name+' ('+status+')');}
         await new Promise(r=>setTimeout(r,500));
       }catch(e){log('  ❌ TG: '+e.message);}
     }
@@ -428,6 +432,7 @@ app.listen(PORT,'0.0.0.0',async()=>{
   const l=await db('get','leads','','order=created_at.asc');log('📋 Leads: '+l.length);
   const s=await getSession();log('🔐 Session: '+(s?'LOADED ✅':'NOT SET ❌'));
 });
+
 
 
 
