@@ -128,13 +128,7 @@ app.post('/api/auth/verify-otp',async(req,res)=>{
     await client.start({
       phoneNumber:()=>Promise.resolve(req.body.phone),
       phoneCode:()=>Promise.resolve(req.body.code),
-      password:()=>{
-        if(req.body.password&&req.body.password.length>0) return Promise.resolve(req.body.password);
-        // Nếu không có password thì throw để client biết cần 2FA
-        const err=new Error('2FA_REQUIRED');
-        err.code=2;
-        throw err;
-      },
+      password:()=>Promise.resolve(req.body.password||''),
       onError:(e)=>{throw e}
     });
     await saveSession(client.session.save());pendingClient=null;
@@ -412,6 +406,7 @@ app.listen(PORT,'0.0.0.0',async()=>{
   const l=await db('get','leads','','order=created_at.asc');log('📋 Leads: '+l.length);
   const s=await getSession();log('🔐 Session: '+(s?'LOADED ✅':'NOT SET ❌'));
 });
+
 
 
 
