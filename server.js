@@ -128,6 +128,13 @@ app.get('/api/reports',async(req,res)=>res.json(await db('get','reports','','ord
 app.get('/api/reports/latest',async(req,res)=>{const r=await db('get','reports','','order=created_at.desc&limit=1');res.json(r[0]||null);});
 app.delete('/api/reports/:id',async(req,res)=>{await db('delete','reports',null,'id=eq.'+req.params.id);res.json({ok:true});});
 
+// ── MANUAL REPORT ─────────────────────────────────
+app.post('/api/reports/generate',async(req,res)=>{
+  log('📋 Manual report generation triggered');
+  res.json({ok:true});
+  generateReport(0,0).catch(e=>log('❌ '+e.message));
+});
+
 // ── LOGS ───────────────────────────────────────────
 app.get('/api/logs',(req,res)=>res.json(logs));
 
@@ -389,4 +396,5 @@ app.listen(PORT,'0.0.0.0',async()=>{
   const s=await getSession();log('🔐 Session: '+(s?'LOADED ✅':'NOT SET ❌'));
   const k=await getOpenAIKey();log('🤖 OpenAI: '+(k?'READY ✅':'NOT SET ❌'));
 });
+
 
