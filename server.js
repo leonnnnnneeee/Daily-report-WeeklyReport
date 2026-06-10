@@ -394,38 +394,45 @@ async function runScan(){
   await generateReport(newLeads,updatedLeads);
 }
 
-async function generateReport(newLeads,updatedLeads){
-  const leads=await db('get','leads','','order=updated_at.desc');
-  if(!leads.length)return;
-  const today=new Date();
-  const dateStr=today.getDate()+'-'+(today.getMonth()+1);
-  const sn={interested:'quan tâm, đang discuss',waiting:'đã phản hồi, đang đợi',no_budget:'chưa có budget',follow_up_needed:'cần follow up',closed_won:'đã chốt deal',closed_lost:'không quan tâm'};
-  const done=leads.filter(l=>l.status!=='new');
-  const fu=leads.filter(l=>l.status==='follow_up_needed'||l.status==='waiting');
-  const tgLeads=done.filter(l=>l.telegram_username);
-  const emailLeads=done.filter(l=>l.lark_email&&!l.telegram_username);
-  const tgDetail=tgLeads.map(l=>'  - '+l.name+' (@'+l.telegram_username+'): '+(l.note||sn[l.status]||l.status)).join('\n');
-  const emailDetail=emailLeads.map(l=>'  - '+l.name+' ('+l.lark_email+'): '+(l.note||sn[l.status]||l.status)).join('\n');
+async function generateReport(newLeads, updatedLeads){
+  const leads = await db('get','leads','','order=updated_at.desc');
+  if(!leads.length) return;
+  const today = new Date();
+  const dateStr = today.getDate()+'-'+(today.getMonth()+1);
 
-  const content=`E gửi Standup note ngày ${dateStr}:
+  const activeLeads = leads.filter(l=>l.status!=='new'&&l.note&&l.note.trim());
+  const fu = leads.filter(l=>l.status==='follow_up_needed'||l.status==='waiting');
 
-1. What did you accomplish yesterday?
-- Reach out qua Telegram:
-${tgDetail||'  - Không có hoạt động mới'}${newLeads>0?'\n- Tìm được '+newLeads+' leads mới từ scan':''}
-- Reach out qua Lark Email:
-${emailDetail||'  - Không có email mới'}
+  const leadLines = activeLeads.map(function(l){
+    var note = l.note.replace(/\[\?\/10\]\s*/g,'').replace(/\[\d+\/10\]\s*/g,'').trim();
+    var tg = l.telegram_username ? ' (@'+l.telegram_username+')' : '';
+    return '- '+l.name+tg+': '+note;
+  }).join('\n');
 
-2. What are you planning to do today?
-- Reach out các lead trong Telegram + Email
-- Tìm thêm lead mới từ sản phẩm
-${fu.length>0?'- Follow up: '+fu.map(l=>l.name+(l.telegram_username?' (@'+l.telegram_username+')':'')).join(', '):''}
-- Collect lại date email gửi email remind`;
+  const fuLine = fu.length>0 ? '- Follow up: '+fu.map(function(l){return l.name;}).join(', ') : '- Reach out các lead mới';
+
+  const content = 'E gửi Standup note ngày '+dateStr+':\n'+
+    '1. What did you accomplish yesterday?\n'+
+    (leadLines||'- Không có hoạt động mới')+'\n\n'+
+    '2. What are you planning to do today?\n'+
+    fuLine+'\n'+
+    '- Tìm thêm lead mới từ Telegram\n'+
+    '- Collect lại date email gửi email remind';
 
   try{
-    await db('post','reports',{id:'report_'+Date.now(),date:today.toISOString().slice(0,10),content,leads_scanned:leads.length,new_leads:newLeads,updated_leads:updatedLeads});
+    await db('post','reports',{
+      id:'report_'+Date.now(),
+      date:today.toISOString().slice(0,10),
+      content:content,
+      leads_scanned:leads.length,
+      new_leads:newLeads,
+      updated_leads:updatedLeads
+    });
     log('✅ Report saved!');
+    log(content.slice(0,120));
   }catch(e){log('❌ Report: '+e.message);}
 }
+
 
 cron.schedule('40 9 * * *',()=>{log('[CRON] 9:40AM daily scan');runScan().catch(e=>log('❌ '+e.message));},{timezone:'Asia/Ho_Chi_Minh'});
 app.get('*',(req,res)=>res.sendFile(path.join(__dirname,'dist','index.html')));
@@ -434,6 +441,7 @@ app.listen(PORT,'0.0.0.0',async()=>{
   const l=await db('get','leads','','order=created_at.asc');log('📋 Leads: '+l.length);
   const s=await getSession();log('🔐 Session: '+(s?'LOADED ✅':'NOT SET ❌'));
 });
+
 
 
 
