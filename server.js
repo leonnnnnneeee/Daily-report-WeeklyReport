@@ -185,10 +185,11 @@ async function scanOneLead(leadId){
     log('  🔍 Scanning @'+lead.telegram_username+'...');
     const entity=await client.getEntity(lead.telegram_username);
     const msgs=await client.getMessages(entity,{limit:50});
-    const cutoff=Date.now()/1000-24*3600; // 24h
-    const recent=msgs.filter(m=>m.date>cutoff&&m.message).map(m=>({fromMe:m.out,text:m.message}));
-    log('  📨 '+recent.length+' recent messages');
-
+    const cutoff=Date.now()/1000-24*3600;
+    const newMsgs=msgs.filter(m=>m.date>cutoff&&m.message);
+    // Phân tích TOÀN BỘ 50 tin gần nhất để hiểu context đầy đủ
+    const recent=msgs.filter(m=>m.message).map(m=>({fromMe:m.out,text:m.message}));
+    log("  📨 "+newMsgs.length+" tin mới / "+recent.length+" tin tổng");
     if(recent.length>0){
       log('  🤖 Analyzing with Gemini...');
       const analysis = await analyzeConversation(lead.name, lead.telegram_username, recent);
@@ -331,10 +332,11 @@ async function runScan(){
         const username=entity.username||'';
         const name=((entity.firstName||'')+' '+(entity.lastName||'')).trim()||username||String(entity.id);
         const msgs=await client.getMessages(entity,{limit:50});
-        const recent=msgs.filter(m=>m.date>cutoff&&m.message).map(m=>({fromMe:m.out,text:m.message}));
-        if(!recent.length)continue;
-        log('  💬 '+name+' (@'+username+'): '+recent.length+' msgs');
-
+        const newMsgs=msgs.filter(m=>m.date>cutoff&&m.message);
+        if(!newMsgs.length)continue;
+        // Phân tích TOÀN BỘ 50 tin gần nhất
+        const recent=msgs.filter(m=>m.message).map(m=>({fromMe:m.out,text:m.message}));
+        log("  💬 "+name+" (@"+username+"): "+newMsgs.length+" tin mới / "+recent.length+" tin tổng");
         log('  🤖 Analyzing with Gemini AI...');
         const analysis = await analyzeConversation(name, username, recent);
         
@@ -432,6 +434,7 @@ app.listen(PORT,'0.0.0.0',async()=>{
   const l=await db('get','leads','','order=created_at.asc');log('📋 Leads: '+l.length);
   const s=await getSession();log('🔐 Session: '+(s?'LOADED ✅':'NOT SET ❌'));
 });
+
 
 
 
