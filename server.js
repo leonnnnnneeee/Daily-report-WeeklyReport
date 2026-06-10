@@ -244,6 +244,7 @@ async function loadGeminiKey(){
     const r=await axios.get(SB_URL+'/rest/v1/sessions?key=eq.gemini_key',{headers:SBH});
     if(r.data&&r.data[0]&&r.data[0].value&&r.data[0].value.length>10){
       GEMINI_KEY=r.data[0].value;
+      log('✅ Gemini key loaded: '+GEMINI_KEY.slice(0,10)+'...');
       return GEMINI_KEY;
     }
   }catch(e){}
@@ -254,8 +255,9 @@ async function analyzeWithGemini(prompt){
   const key = await loadGeminiKey();
   if(!key){log('⚠️ No Gemini key');return null;}
   try{
+    const model = key.startsWith('AQ.') ? 'gemini-2.0-flash' : 'gemini-1.5-flash';
     const r = await axios.post(
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key='+key,
+      'https://generativelanguage.googleapis.com/v1beta/models/'+model+':generateContent?key='+key,
       {contents:[{parts:[{text:prompt}]}]},
       {headers:{'Content-Type':'application/json'}}
     );
@@ -475,6 +477,7 @@ app.listen(PORT,'0.0.0.0',async()=>{
   const l=await db('get','leads','','order=created_at.asc');log('📋 Leads: '+l.length);
   const s=await getSession();log('🔐 Session: '+(s?'LOADED ✅':'NOT SET ❌'));
 });
+
 
 
 
