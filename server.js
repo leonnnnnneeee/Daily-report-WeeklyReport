@@ -435,38 +435,26 @@ async function generateReport(newLeads, updatedLeads){
   const leads = await db('get','leads','','order=updated_at.desc');
   if(!leads.length) return;
   const today = new Date();
-  const dateStr = today.getDate()+'-'+(today.getMonth()+1);
-
+  const d = today.getDate()+'-'+(today.getMonth()+1);
   const activeLeads = leads.filter(l=>l.status!=='new'&&l.note&&l.note.trim());
   const fu = leads.filter(l=>l.status==='follow_up_needed'||l.status==='waiting');
-
-  const leadLines = activeLeads.map(function(l){
-    var note = l.note.replace(/\[\?\/10\]\s*/g,'').replace(/\[\d+\/10\]\s*/g,'').trim();
-    var tg = l.telegram_username ? ' (@'+l.telegram_username+')' : '';
+  const lines = activeLeads.map(l=>{
+    const note = l.note.replace(/\[.\/10\] */g,'').replace(/\[\d+\/10\] */g,'').trim();
+    const tg = l.telegram_username?' (@'+l.telegram_username+')':'';
     return '- '+l.name+tg+': '+note;
-  }).join('\n');
-
-  const fuLine = fu.length>0 ? '- Follow up: '+fu.map(function(l){return l.name;}).join(', ') : '- Reach out các lead mới';
-
-  const content = 'E gửi Standup note ngày '+dateStr+':\n'+
-    '1. What did you accomplish yesterday?\n'+
-    (leadLines||'- Không có hoạt động mới')+'\n\n'+
-    '2. What are you planning to do today?\n'+
-    fuLine+'\n'+
-    '- Tìm thêm lead mới từ Telegram\n'+
+  });
+  const fuLine = fu.length>0?'- Follow up: '+fu.map(l=>l.name).join(', '):'- Reach out các lead mới';
+  const sep = '\n';
+  const content = 'E gửi Standup note ngày '+d+':'+sep+
+    '1. What did you accomplish yesterday?'+sep+
+    (lines.length>0?lines.join(sep):'- Không có hoạt động mới')+sep+sep+
+    '2. What are you planning to do today?'+sep+
+    fuLine+sep+
+    '- Tìm thêm lead mới từ Telegram'+sep+
     '- Collect lại date email gửi email remind';
-
   try{
-    await db('post','reports',{
-      id:'report_'+Date.now(),
-      date:today.toISOString().slice(0,10),
-      content:content,
-      leads_scanned:leads.length,
-      new_leads:newLeads,
-      updated_leads:updatedLeads
-    });
+    await db('post','reports',{id:'report_'+Date.now(),date:today.toISOString().slice(0,10),content:content,leads_scanned:leads.length,new_leads:newLeads,updated_leads:updatedLeads});
     log('✅ Report saved!');
-    log(content.slice(0,120));
   }catch(e){log('❌ Report: '+e.message);}
 }
 
@@ -478,6 +466,7 @@ app.listen(PORT,'0.0.0.0',async()=>{
   const l=await db('get','leads','','order=created_at.asc');log('📋 Leads: '+l.length);
   const s=await getSession();log('🔐 Session: '+(s?'LOADED ✅':'NOT SET ❌'));
 });
+
 
 
 
