@@ -184,8 +184,8 @@ async function scanOneLead(leadId){
     await client.connect();
     log('  🔍 Scanning @'+lead.telegram_username+'...');
     const entity=await client.getEntity(lead.telegram_username);
-    const msgs=await client.getMessages(entity,{limit:20});
-    const cutoff=Date.now()/1000-72*3600;
+    const msgs=await client.getMessages(entity,{limit:50});
+    const cutoff=Date.now()/1000-30*24*3600; // 30 ngày
     const recent=msgs.filter(m=>m.date>cutoff&&m.message).map(m=>({fromMe:m.out,text:m.message}));
     log('  📨 '+recent.length+' recent messages');
 
@@ -261,12 +261,21 @@ async function analyzeWithGemini(prompt){
 
 async function analyzeConversation(name, username, messages){
   const msgText = messages.map(m=>"["+(m.fromMe?"TÔI":name)+"]: "+m.text).join("\n");
-  const jsonSchema = '{"is_potential_lead":true/false,"status":"interested|waiting|no_budget|follow_up_needed|closed_won|closed_lost|new","summary":"1 câu tiếng Việt","next_action":"việc cần làm","potential_score":1-10}';
-  const prompt = 'Bạn là sales analyst Coincu.com (crypto PR & media).\n'+
-    'Phân tích conversation với "'+name+'" (@'+username+') và trả về JSON:\n'+
-    jsonSchema+'\n\n'+
-    'is_potential_lead=true nếu họ cần PR/media/marketing crypto.\n'+
-    'Chỉ trả về JSON.\n\nConversation:\n'+msgText;
+  const prompt = 'Bạn là sales analyst Coincu.com (công ty crypto PR & media tại Việt Nam).\n'+
+    'Đọc TOÀN BỘ hội thoại dưới đây với "'+name+'" (@'+username+') và phân tích:\n\n'+
+    'Conversation ('+messages.length+' tin nhắn):\n'+msgText+'\n\n'+
+    'Dựa trên TOÀN BỘ nội dung hội thoại, trả về JSON:\n'+
+    '{\n'+
+    '  "is_potential_lead": true/false,\n'+
+    '  "status": "interested|waiting|no_budget|follow_up_needed|closed_won|closed_lost|new",\n'+
+    '  "summary": "tóm tắt 1-2 câu tiếng Việt về tình trạng thực tế",\n'+
+    '  "next_action": "hành động cụ thể cần làm tiếp theo",\n'+
+    '  "potential_score": 1-10\n'+
+    '}\n\n'+
+    'Lưu ý:\n'+
+    '- is_potential_lead=true nếu họ là dự án crypto/Web3 cần PR/media/marketing\n'+
+    '- Phân tích DỰA TRÊN NỘI DUNG THỰC TẾ của hội thoại, không đoán mò\n'+
+    '- Chỉ trả về JSON, không giải thích thêm';
 
   return await analyzeWithGemini(prompt);
 }
@@ -311,13 +320,13 @@ async function runScan(){
     const dialogs=await client.getDialogs({limit:200});
     const dms=dialogs.filter(d=>d.isUser&&!d.entity.bot);
     log('👤 DMs: '+dms.length);
-    const cutoff=Date.now()/1000-72*3600;
+    const cutoff=Date.now()/1000-30*24*3600;
     for(const dialog of dms){
       try{
         const entity=dialog.entity;
         const username=entity.username||'';
         const name=((entity.firstName||'')+' '+(entity.lastName||'')).trim()||username||String(entity.id);
-        const msgs=await client.getMessages(entity,{limit:20});
+        const msgs=await client.getMessages(entity,{limit:50});
         const recent=msgs.filter(m=>m.date>cutoff&&m.message).map(m=>({fromMe:m.out,text:m.message}));
         if(!recent.length)continue;
         log('  💬 '+name+' (@'+username+'): '+recent.length+' msgs');
@@ -419,6 +428,7 @@ app.listen(PORT,'0.0.0.0',async()=>{
   const l=await db('get','leads','','order=created_at.asc');log('📋 Leads: '+l.length);
   const s=await getSession();log('🔐 Session: '+(s?'LOADED ✅':'NOT SET ❌'));
 });
+
 
 
 
