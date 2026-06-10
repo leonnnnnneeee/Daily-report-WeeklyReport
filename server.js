@@ -410,7 +410,7 @@ async function runScan(){
         await db('patch','leads',updateData,'id=eq.'+ex[0].id);
         updatedLeads++;log('  🔄 '+name+': '+status+(ex[0].note?' (note giữ nguyên)':' | '+note.slice(0,50)));}
         else{// Lead mới - dùng AI summary ngắn gọn làm note ban đầu (user có thể edit sau)
-        const initNote = analysis&&analysis.summary ? analysis.summary : note;
+        const initNote = (analysis&&analysis.summary) ? analysis.summary : '';
         await db('post','leads',{id:'lead_tg_'+entity.id,name,telegram_username:username,status,note:initNote,sources:'Telegram DM',website:'',lark_email:'',research:'',last_contacted:new Date().toISOString().slice(0,10),last_scanned:new Date().toISOString(),week:Math.ceil((new Date()-new Date(new Date().getFullYear(),0,1))/604800000)});newLeads++;log('  ✅ NEW: '+name+' ('+status+')');}
         await new Promise(r=>setTimeout(r,500));
       }catch(e){log('  ❌ TG: '+e.message);}
@@ -437,7 +437,7 @@ async function runScan(){
   }
 
   log('✅ Done! New: '+newLeads+' | Updated: '+updatedLeads);
-  await generateReport(newLeads,updatedLeads);
+  await generateReport(newLeads,updatedLeads); // Always generate report
 }
 
 async function generateReport(newLeads, updatedLeads){
@@ -445,10 +445,10 @@ async function generateReport(newLeads, updatedLeads){
   if(!leads.length) return;
   const today = new Date();
   const d = today.getDate()+'-'+(today.getMonth()+1);
-  const activeLeads = leads.filter(l=>l.status!=='new'&&l.note&&l.note.trim());
+  const activeLeads = leads.filter(l=>l.note&&l.note.trim()&&l.status!=='new');
   const fu = leads.filter(l=>l.status==='follow_up_needed'||l.status==='waiting');
   const lines = activeLeads.map(l=>{
-    const note = l.note.replace(/\[.\/10\] */g,'').replace(/\[\d+\/10\] */g,'').trim();
+    var rawNote = l.note||''; var note = rawNote.replace(/\[.+?\/10\]\s*/g,'').replace(/\[\?\/10\]\s*/g,'').trim(); if(!note) note = rawNote.trim();
     const tg = l.telegram_username?' (@'+l.telegram_username+')':'';
     return '- '+l.name+tg+': '+note;
   });
@@ -475,6 +475,7 @@ app.listen(PORT,'0.0.0.0',async()=>{
   const l=await db('get','leads','','order=created_at.asc');log('📋 Leads: '+l.length);
   const s=await getSession();log('🔐 Session: '+(s?'LOADED ✅':'NOT SET ❌'));
 });
+
 
 
 
