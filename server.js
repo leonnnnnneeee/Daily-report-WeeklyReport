@@ -385,7 +385,7 @@ ${fu.length>0?'- Follow up: '+fu.map(l=>l.name+(l.telegram_username?' (@'+l.tele
   }catch(e){log('❌ Report: '+e.message);}
 }
 
-cron.schedule('0 8 * * *',()=>{log('[CRON] 8AM scan');runScan().catch(e=>log('❌ '+e.message));},{timezone:'Asia/Ho_Chi_Minh'});
+cron.schedule('40 9 * * *',()=>{log('[CRON] 9:40AM daily scan');runScan().catch(e=>log('❌ '+e.message));},{timezone:'Asia/Ho_Chi_Minh'});
 app.get('*',(req,res)=>res.sendFile(path.join(__dirname,'dist','index.html')));
 app.listen(PORT,'0.0.0.0',async()=>{
   log('✅ Ready on port '+PORT);
