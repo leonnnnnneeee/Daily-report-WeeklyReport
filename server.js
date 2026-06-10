@@ -424,16 +424,33 @@ async function runScan(){
 
 async function generateReport(newLeads, updatedLeads){
   const leads = await db('get','leads','','order=updated_at.desc');
-  if(!leads.length) return;
+  if(!leads.length){ log('⚠️ No leads for report'); return; }
   const today = new Date();
   const d = today.getDate()+'-'+(today.getMonth()+1);
-  const activeLeads = leads.filter(l=>l.note&&l.note.trim()&&l.status!=='new');
+  
+  // Lấy tất cả leads không phải 'new' để đưa vào report
+  const activeLeads = leads.filter(l=>l.status!=='new');
   const fu = leads.filter(l=>l.status==='follow_up_needed'||l.status==='waiting');
+  
+  log('📋 Generating report: '+activeLeads.length+' active leads, '+fu.length+' follow ups');
+
+  const statusNote = {
+    interested: 'đang quan tâm dịch vụ',
+    waiting: 'đang đợi phản hồi',
+    no_budget: 'chưa có budget',
+    follow_up_needed: 'cần follow up',
+    closed_won: 'đã chốt deal',
+    closed_lost: 'không quan tâm'
+  };
+
   const lines = activeLeads.map(l=>{
-    var rawNote = l.note||''; var note = rawNote.replace(/\[.+?\/10\]\s*/g,'').replace(/\[\?\/10\]\s*/g,'').trim(); if(!note) note = rawNote.trim();
+    // Dùng note của user nếu có, không thì dùng status description
+    var note = (l.note||'').replace(/\[\?\/10\]\s*/g,'').replace(/\[\d+\/10\]\s*/g,'').trim();
+    if(!note) note = statusNote[l.status]||l.status;
     const tg = l.telegram_username?' (@'+l.telegram_username+')':'';
     return '- '+l.name+tg+': '+note;
   });
+
   const fuLine = fu.length>0?'- Follow up: '+fu.map(l=>l.name).join(', '):'- Reach out các lead mới';
   const sep = '\n';
   const content = 'E gửi Standup note ngày '+d+':'+sep+
@@ -443,10 +460,19 @@ async function generateReport(newLeads, updatedLeads){
     fuLine+sep+
     '- Tìm thêm lead mới từ Telegram'+sep+
     '- Collect lại date email gửi email remind';
+
   try{
-    await db('post','reports',{id:'report_'+Date.now(),date:today.toISOString().slice(0,10),content:content,leads_scanned:leads.length,new_leads:newLeads,updated_leads:updatedLeads});
-    log('✅ Report saved!');
-  }catch(e){log('❌ Report: '+e.message);}
+    await db('post','reports',{
+      id:'report_'+Date.now(),
+      date:today.toISOString().slice(0,10),
+      content:content,
+      leads_scanned:leads.length,
+      new_leads:newLeads,
+      updated_leads:updatedLeads
+    });
+    log('✅ Report saved! '+activeLeads.length+' leads included');
+    log(content.slice(0,150));
+  }catch(e){log('❌ Report DB error: '+e.message);}
 }
 
 
@@ -457,6 +483,7 @@ app.listen(PORT,'0.0.0.0',async()=>{
   const l=await db('get','leads','','order=created_at.asc');log('📋 Leads: '+l.length);
   const s=await getSession();log('🔐 Session: '+(s?'LOADED ✅':'NOT SET ❌'));
 });
+
 
 
 
