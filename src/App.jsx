@@ -308,7 +308,7 @@ export default function App() {
                 <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
                   <thead>
                     <tr>
-                      {['STT','Name','Website','Sources','TG','Research','Note','Status'].map(h=>(
+                      {['STT','Name','Website','Sources','TG','Research','Note','Status',''].map(h=>(
                         <th key={h} style={{background:'#FFF9C4',border:'1px solid #E5E7EB',padding:'8px 10px',textAlign:'center',fontWeight:600,whiteSpace:'nowrap'}}>{h}</th>
                       ))}
                     </tr>
@@ -327,6 +327,9 @@ export default function App() {
                           <td style={{border:'1px solid #E5E7EB',padding:'6px 8px',maxWidth:200}}>{l.research?.slice(0,80)}</td>
                           <td style={{border:'1px solid #E5E7EB',padding:'6px 8px',maxWidth:150}}>{l.note?.slice(0,60)}</td>
                           <td style={{border:'1px solid #E5E7EB',padding:'6px 8px'}}><Badge status={l.status}/></td>
+                          <td style={{border:'1px solid #E5E7EB',padding:'4px 6px',textAlign:'center'}}>
+                            <button onClick={()=>deleteLead(l.id)} style={{background:'#FEF2F2',color:'#DC2626',border:'1px solid #FCA5A5',borderRadius:4,padding:'2px 8px',fontSize:11,cursor:'pointer'}}>🗑</button>
+                          </td>
                         </tr>
                       );
                     })}
