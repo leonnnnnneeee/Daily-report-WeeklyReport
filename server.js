@@ -16,7 +16,7 @@ function log(msg){const l='['+new Date().toLocaleTimeString('vi-VN')+'] '+msg;co
 log('🚀 Coincu Sales v10');
 // Install Python deps at startup
 try{
-  require('child_process').execSync('pip install openpyxl --break-system-packages -q',{timeout:60000});
+  require('child_process').execSync('pip3 install openpyxl --break-system-packages -q',{timeout:60000});
   log('✅ openpyxl ready');
 }catch(e){log('⚠️ pip install: '+e.message);}
 
@@ -457,6 +457,7 @@ app.listen(PORT,'0.0.0.0',async()=>{
   const l=await db('get','leads','','order=created_at.asc');log('📋 Leads: '+l.length);
   const s=await getSession();log('🔐 Session: '+(s?'LOADED ✅':'NOT SET ❌'));
 });
+
 
 
 
