@@ -236,50 +236,48 @@ async function scanOneLead(leadId){
 }
 
 // ── GEMINI AI ──────────────────────────────────────
-let GEMINI_KEY = process.env.GEMINI_API_KEY || '';
-// Load từ Supabase nếu không có trong env
-async function loadGeminiKey(){
-  if(GEMINI_KEY&&GEMINI_KEY.length>10)return GEMINI_KEY;
+let OPENAI_KEY = process.env.OPENAI_API_KEY || '';
+async function loadOpenAIKey(){
+  if(OPENAI_KEY&&OPENAI_KEY.length>10)return OPENAI_KEY;
   try{
-    const r=await axios.get(SB_URL+'/rest/v1/sessions?key=eq.gemini_key',{headers:SBH});
+    const r=await axios.get(SB_URL+'/rest/v1/sessions?key=eq.openai_key',{headers:SBH});
     if(r.data&&r.data[0]&&r.data[0].value&&r.data[0].value.length>10){
-      GEMINI_KEY=r.data[0].value;
-      log('✅ Gemini key loaded: '+GEMINI_KEY.slice(0,10)+'...');
-      return GEMINI_KEY;
+      OPENAI_KEY=r.data[0].value;
+      log('✅ OpenAI key loaded: '+OPENAI_KEY.slice(0,15)+'...');
+      return OPENAI_KEY;
     }
   }catch(e){}
   return null;
 }
 
-async function analyzeWithGemini(prompt){
-  const key = await loadGeminiKey();
-  if(!key){log('⚠️ No Gemini key');return null;}
+async function analyzeWithOpenAI(messages, name, username){
+  const key = await loadOpenAIKey();
+  if(!key){log('No OpenAI key');return null;}
   try{
-    let r;
-    if(key.startsWith('AQ.')){
-      // OAuth2 Bearer token format
-      r = await axios.post(
-        'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent',
-        {contents:[{parts:[{text:prompt}]}]},
-        {headers:{'Content-Type':'application/json','Authorization':'Bearer '+key}}
-      );
-    } else {
-      // API key format (AIzaSy...)
-      r = await axios.post(
-        'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key='+key,
-        {contents:[{parts:[{text:prompt}]}]},
-        {headers:{'Content-Type':'application/json'}}
-      );
+    const msgText = messages.map(function(m){return '['+(m.fromMe?'TÔI':name)+']: '+m.text;}).join('\n');
+    const sysPrompt = 'Ban la sales analyst Coincu.com (crypto PR & media Vietnam). Doc conversation Telegram va tra ve JSON: {"status":"interested|waiting|no_budget|follow_up_needed|closed_won|closed_lost|new","note":"mo ta ngan 1 cau tieng Viet ve tinh trang outreach (vi du: dang offer dich vu PR, dang discuss them)","is_lead":true/false}. is_lead=true neu co the la khach hang crypto can PR/media. Chi tra ve JSON.';
+    const r = await axios.post('https://api.openai.com/v1/chat/completions',{
+      model:'gpt-4o-mini',
+      max_tokens:150,
+      messages:[
+        {role:'system',content:sysPrompt},
+        {role:'user',content:'Conversation voi '+name+' (@'+username+'):\n\n'+msgText}
+      ]
+    },{headers:{'Authorization':'Bearer '+key,'Content-Type':'application/json'}});
+    const text = r.data.choices[0].message.content;
+    const match = text.match(/[{][^}]+[}]/);
+    if(match){
+      const result = JSON.parse(match[0]);
+      log('  🤖 OpenAI: '+result.status+' | '+result.note);
+      return result;
     }
-    const text = r.data?.candidates?.[0]?.content?.parts?.[0]?.text||'';
-    const match = text.match(/\{[\s\S]*\}/);
-    if(match) return JSON.parse(match[0]);
     return null;
   }catch(e){
-    log('❌ Gemini: '+e.message);
+    log('OpenAI error: '+e.message);
     return null;
   }
 }
+
 
 async function analyzeConversation(name, username, messages){
   const msgText = messages.map(m=>"["+(m.fromMe?"TÔI":name)+"]: "+m.text).join("\n");
@@ -358,43 +356,31 @@ async function runScan(){
         // Phân tích TOÀN BỘ 50 tin gần nhất
         const recent=msgs.filter(m=>m.message).map(m=>({fromMe:m.out,text:m.message}));
         log("  💬 "+name+" (@"+username+"): "+newMsgs.length+" tin mới / "+recent.length+" tin tổng");
-        // Smart rule-based - không cần AI
-        var allT=recent.map(function(m){return m.text;}).join(' ').toLowerCase();
-        var theirM=recent.filter(function(m){return !m.fromMe;});
-        var myM=recent.filter(function(m){return m.fromMe;});
-        var theirL=(theirM[theirM.length-1]||{text:''}).text;
-        var myL=(myM[myM.length-1]||{text:''}).text;
+        // Phân tích với OpenAI
+        var aiResult = await analyzeWithOpenAI(recent, name, username);
         var status='new', note='';
-
-        if(/không có budget|no budget|chưa có budget|cant afford/i.test(allT)){
-          status='no_budget'; note='Chưa có budget';
-        } else if(/đã chốt|deal done|confirmed|paid|ok deal/i.test(allT)){
-          status='closed_won'; note='Đã chốt deal';
-        } else if(/không quan tâm|not interested|no thanks|no need|decline/i.test(allT)){
-          status='closed_lost'; note='Không quan tâm';
-        } else if(/tuần sau|tháng sau|get back|getback|bận|busy|sau nhé|will check|come back|next week/i.test(allT)){
-          status='waiting';
-          var wm=theirM.find(function(m){return /tuần sau|tháng sau|get back|getback|bận|busy|sau nhé|come back|next week/i.test(m.text);});
-          note=wm?'hẹn lại: '+wm.text.slice(0,80):'đang đợi reply';
-        } else if(/price|giá|package|how much|chi phí|báo giá|quotation|offer|rate|fee/i.test(allT)){
-          status='interested';
-          var pm=theirM.find(function(m){return /price|giá|package|how much|chi phí|báo giá|quotation|offer|rate|fee/i.test(m.text);});
-          note=pm?'đang hỏi về giá: '+pm.text.slice(0,80):'đang quan tâm giá/dịch vụ';
-        } else if(/interested|quan tâm|want to know|tell me more|sounds good|would like/i.test(allT)){
-          status='interested';
-          var im=theirM.find(function(m){return /interested|quan tâm|want to know|tell me more|sounds good|would like/i.test(m.text);});
-          note=im?'đang quan tâm: '+im.text.slice(0,80):'đang quan tâm dịch vụ';
-        } else if(theirM.length===0 && myM.length>0){
-          status='follow_up_needed';
-          note='chưa reply: đã gửi offer, chờ phản hồi';
-        } else if(myM.length>0 && theirM.length>0){
-          status='waiting';
-          var mf=theirM.filter(function(m){return m.text.length>20;}).sort(function(a,b){return b.text.length-a.text.length;})[0];
-          note=mf?'đang discuss: '+mf.text.slice(0,80):'đang trao đổi';
+        if(aiResult && aiResult.status){
+          status = aiResult.status;
+          note = aiResult.note || '';
+          if(!aiResult.is_lead){
+            log('  ⏩ '+name+': not a lead, skip');
+            continue;
+          }
         } else {
-          status='new'; note=theirL?'lead nhắn: '+theirL.slice(0,80):'tin nhắn mới';
+          // Fallback rule-based
+          var allT=recent.map(function(m){return m.text;}).join(' ').toLowerCase();
+          var theirM=recent.filter(function(m){return !m.fromMe;});
+          var myM=recent.filter(function(m){return m.fromMe;});
+          var theirL=(theirM[theirM.length-1]||{text:''}).text;
+          if(/không có budget|no budget/i.test(allT)){status='no_budget';note='Chưa có budget';}
+          else if(/đã chốt|deal done|confirmed|paid/i.test(allT)){status='closed_won';note='Đã chốt deal';}
+          else if(/không quan tâm|not interested|no thanks/i.test(allT)){status='closed_lost';note='Không quan tâm';}
+          else if(/tuần sau|get back|getback|bận|busy|sau nhé/i.test(allT)){status='waiting';note='hẹn lại sau';}
+          else if(/price|giá|package|how much|báo giá/i.test(allT)){status='interested';note='đang quan tâm giá/dịch vụ';}
+          else if(theirM.length===0&&myM.length>0){status='follow_up_needed';note='chưa reply: đã gửi offer';}
+          else{status='waiting';note='đang trao đổi';}
+          log('  📊 '+name+': '+status+' (fallback)');
         }
-        log('  📊 '+name+': '+status+' | '+note.slice(0,70));
         const ex=await db('get','leads','','telegram_username=eq.'+username);
         if(ex&&ex.length>0){// Chỉ update status + last_scanned, KHÔNG ghi đè note do user tự viết
         const updateData = {status:status,last_scanned:new Date().toISOString(),last_contacted:new Date().toISOString().slice(0,10)};
@@ -470,6 +456,7 @@ app.listen(PORT,'0.0.0.0',async()=>{
   const l=await db('get','leads','','order=created_at.asc');log('📋 Leads: '+l.length);
   const s=await getSession();log('🔐 Session: '+(s?'LOADED ✅':'NOT SET ❌'));
 });
+
 
 
 
