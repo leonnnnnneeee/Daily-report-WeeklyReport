@@ -401,8 +401,17 @@ async function runScan(){
           log('  📊 '+name+': '+status+' | '+note.slice(0,60)+' (rule-based)');
         }
         const ex=await db('get','leads','','telegram_username=eq.'+username);
-        if(ex&&ex.length>0){const fullNote='['+(analysis&&analysis.potential_score||'?')+'/10] '+note;await db('patch','leads',{status,note:fullNote,last_scanned:new Date().toISOString(),last_contacted:new Date().toISOString().slice(0,10)},'id=eq.'+ex[0].id);updatedLeads++;log('  🔄 Updated: '+name+' | '+fullNote.slice(0,60));}
-        else{const fullNote='['+(analysis&&analysis.potential_score||'?')+'/10] '+note;await db('post','leads',{id:'lead_tg_'+entity.id,name,telegram_username:username,status,note:fullNote,sources:'Telegram DM',website:'',lark_email:'',research:'',last_contacted:new Date().toISOString().slice(0,10),last_scanned:new Date().toISOString(),week:Math.ceil((new Date()-new Date(new Date().getFullYear(),0,1))/604800000)});newLeads++;log('  ✅ NEW: '+name+' ('+status+')');}
+        if(ex&&ex.length>0){// Chỉ update status + last_scanned, KHÔNG ghi đè note do user tự viết
+        const updateData = {status:status,last_scanned:new Date().toISOString(),last_contacted:new Date().toISOString().slice(0,10)};
+        // Chỉ ghi note nếu lead chưa có note
+        if(!ex[0].note||ex[0].note.trim()===''){
+          updateData.note = note;
+        }
+        await db('patch','leads',updateData,'id=eq.'+ex[0].id);
+        updatedLeads++;log('  🔄 '+name+': '+status+(ex[0].note?' (note giữ nguyên)':' | '+note.slice(0,50)));}
+        else{// Lead mới - dùng AI summary ngắn gọn làm note ban đầu (user có thể edit sau)
+        const initNote = analysis&&analysis.summary ? analysis.summary : note;
+        await db('post','leads',{id:'lead_tg_'+entity.id,name,telegram_username:username,status,note:initNote,sources:'Telegram DM',website:'',lark_email:'',research:'',last_contacted:new Date().toISOString().slice(0,10),last_scanned:new Date().toISOString(),week:Math.ceil((new Date()-new Date(new Date().getFullYear(),0,1))/604800000)});newLeads++;log('  ✅ NEW: '+name+' ('+status+')');}
         await new Promise(r=>setTimeout(r,500));
       }catch(e){log('  ❌ TG: '+e.message);}
     }
@@ -466,6 +475,7 @@ app.listen(PORT,'0.0.0.0',async()=>{
   const l=await db('get','leads','','order=created_at.asc');log('📋 Leads: '+l.length);
   const s=await getSession();log('🔐 Session: '+(s?'LOADED ✅':'NOT SET ❌'));
 });
+
 
 
 
