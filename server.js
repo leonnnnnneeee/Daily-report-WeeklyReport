@@ -358,59 +358,43 @@ async function runScan(){
         // Phân tích TOÀN BỘ 50 tin gần nhất
         const recent=msgs.filter(m=>m.message).map(m=>({fromMe:m.out,text:m.message}));
         log("  💬 "+name+" (@"+username+"): "+newMsgs.length+" tin mới / "+recent.length+" tin tổng");
-        log('  🤖 Analyzing with Gemini AI...');
-        const analysis = await analyzeConversation(name, username, recent);
-        
-        let status='new', note='';
-        if(analysis){
-          status = analysis.status || 'new';
-          note = analysis.summary || '';
-          log('  🎯 '+name+': '+status+' ('+(analysis&&analysis.potential_score||'?')+'/10) | '+note.slice(0,80));
-          if(!analysis.is_potential_lead){
-            log('  ⏩ Not a potential lead, skipping');
-            continue;
-          }
+        // Smart rule-based - không cần AI
+        var allT=recent.map(function(m){return m.text;}).join(' ').toLowerCase();
+        var theirM=recent.filter(function(m){return !m.fromMe;});
+        var myM=recent.filter(function(m){return m.fromMe;});
+        var theirL=(theirM[theirM.length-1]||{text:''}).text;
+        var myL=(myM[myM.length-1]||{text:''}).text;
+        var status='new', note='';
+
+        if(/không có budget|no budget|chưa có budget|cant afford/i.test(allT)){
+          status='no_budget'; note='Chưa có budget';
+        } else if(/đã chốt|deal done|confirmed|paid|ok deal/i.test(allT)){
+          status='closed_won'; note='Đã chốt deal';
+        } else if(/không quan tâm|not interested|no thanks|no need|decline/i.test(allT)){
+          status='closed_lost'; note='Không quan tâm';
+        } else if(/tuần sau|tháng sau|get back|getback|bận|busy|sau nhé|will check|come back|next week/i.test(allT)){
+          status='waiting';
+          var wm=theirM.find(function(m){return /tuần sau|tháng sau|get back|getback|bận|busy|sau nhé|come back|next week/i.test(m.text);});
+          note=wm?'hẹn lại: '+wm.text.slice(0,80):'đang đợi reply';
+        } else if(/price|giá|package|how much|chi phí|báo giá|quotation|offer|rate|fee/i.test(allT)){
+          status='interested';
+          var pm=theirM.find(function(m){return /price|giá|package|how much|chi phí|báo giá|quotation|offer|rate|fee/i.test(m.text);});
+          note=pm?'đang hỏi về giá: '+pm.text.slice(0,80):'đang quan tâm giá/dịch vụ';
+        } else if(/interested|quan tâm|want to know|tell me more|sounds good|would like/i.test(allT)){
+          status='interested';
+          var im=theirM.find(function(m){return /interested|quan tâm|want to know|tell me more|sounds good|would like/i.test(m.text);});
+          note=im?'đang quan tâm: '+im.text.slice(0,80):'đang quan tâm dịch vụ';
+        } else if(theirM.length===0 && myM.length>0){
+          status='follow_up_needed';
+          note='chưa reply: đã gửi offer, chờ phản hồi';
+        } else if(myM.length>0 && theirM.length>0){
+          status='waiting';
+          var mf=theirM.filter(function(m){return m.text.length>20;}).sort(function(a,b){return b.text.length-a.text.length;})[0];
+          note=mf?'đang discuss: '+mf.text.slice(0,80):'đang trao đổi';
         } else {
-          // Fallback rule-based - phân tích toàn bộ conversation
-          const allText=recent.map(m=>m.text).join(' ').toLowerCase();
-          const theirMsgs=recent.filter(m=>!m.fromMe);
-          const myMsgs=recent.filter(m=>m.fromMe);
-          const theirLast=(theirMsgs[theirMsgs.length-1]?.text||'').slice(0,150);
-          const myLast=(myMsgs[myMsgs.length-1]?.text||'').slice(0,150);
-          
-          // Phân tích status dựa trên toàn bộ nội dung
-          if(/không có budget|no budget|chưa có budget|hết budget/i.test(allText)){
-            status='no_budget';
-            note='Chưa có budget';
-          } else if(/đã chốt|closed|deal done|confirmed|paid|invoice/i.test(allText)){
-            status='closed_won';
-            note='Đã chốt deal';
-          } else if(/không quan tâm|not interested|no thanks|decline/i.test(allText)){
-            status='closed_lost';
-            note='Không quan tâm';
-          } else if(/quan tâm|interested|muốn biết thêm|tell me more|price|giá|báo giá|package|how much|chi phí/i.test(allText)){
-            status='interested';
-            // Tóm tắt nội dung quan tâm
-            const interestMsg = theirMsgs.find(m=>/quan tâm|interested|price|giá|package|how much/i.test(m.text));
-            note = interestMsg ? interestMsg.text.slice(0,100) : 'Đang quan tâm dịch vụ';
-          } else if(/tuần sau|tháng sau|get back|getback|later|bận|busy|sau nhé|will check/i.test(allText)){
-            status='waiting';
-            note = theirLast.slice(0,100) || 'Hẹn lại sau';
-          } else if(theirMsgs.length===0){
-            status='follow_up_needed';
-            note = 'Chưa reply: '+(myLast.slice(0,80)||'cần follow up');
-          } else if(myMsgs.length===0){
-            status='new';
-            note = 'Lead nhắn tin: '+theirLast.slice(0,80);
-          } else {
-            // Có qua lại nhưng chưa rõ tình trạng
-            status='waiting';
-            // Lấy tin nhắn có nội dung nhất (dài nhất)
-            const mostMeaningful = [...theirMsgs].sort((a,b)=>b.text.length-a.text.length)[0];
-            note = mostMeaningful ? mostMeaningful.text.slice(0,100) : theirLast.slice(0,100);
-          }
-          log('  📊 '+name+': '+status+' | '+note.slice(0,60)+' (rule-based)');
+          status='new'; note=theirL?'lead nhắn: '+theirL.slice(0,80):'tin nhắn mới';
         }
+        log('  📊 '+name+': '+status+' | '+note.slice(0,70));
         const ex=await db('get','leads','','telegram_username=eq.'+username);
         if(ex&&ex.length>0){// Chỉ update status + last_scanned, KHÔNG ghi đè note do user tự viết
         const updateData = {status:status,last_scanned:new Date().toISOString(),last_contacted:new Date().toISOString().slice(0,10)};
@@ -421,7 +405,7 @@ async function runScan(){
         await db('patch','leads',updateData,'id=eq.'+ex[0].id);
         updatedLeads++;log('  🔄 '+name+': '+status+(ex[0].note?' (note giữ nguyên)':' | '+note.slice(0,50)));}
         else{// Lead mới - dùng AI summary ngắn gọn làm note ban đầu (user có thể edit sau)
-        const initNote = (analysis&&analysis.summary) ? analysis.summary : '';
+        var initNote = note||'';
         await db('post','leads',{id:'lead_tg_'+entity.id,name,telegram_username:username,status,note:initNote,sources:'Telegram DM',website:'',lark_email:'',research:'',last_contacted:new Date().toISOString().slice(0,10),last_scanned:new Date().toISOString(),week:Math.ceil((new Date()-new Date(new Date().getFullYear(),0,1))/604800000)});newLeads++;log('  ✅ NEW: '+name+' ('+status+')');}
         await new Promise(r=>setTimeout(r,500));
       }catch(e){log('  ❌ TG: '+e.message);}
@@ -486,6 +470,7 @@ app.listen(PORT,'0.0.0.0',async()=>{
   const l=await db('get','leads','','order=created_at.asc');log('📋 Leads: '+l.length);
   const s=await getSession();log('🔐 Session: '+(s?'LOADED ✅':'NOT SET ❌'));
 });
+
 
 
 
