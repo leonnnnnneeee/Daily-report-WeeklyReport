@@ -125,9 +125,29 @@ app.post('/api/auth/verify-otp',async(req,res)=>{
   log('🔑 Verifying OTP...');
   try{let client=pendingClient||new TelegramClient(new StringSession(''),TG_API_ID,TG_API_HASH,{connectionRetries:5});
     if(!pendingClient)await client.connect();
-    await client.start({phoneNumber:()=>Promise.resolve(req.body.phone),phoneCode:()=>Promise.resolve(req.body.code),password:()=>Promise.resolve(''),onError:(e)=>{throw e}});
-    await saveSession(client.session.save());pendingClient=null;res.json({ok:true});}
-  catch(e){log('❌ '+e.message);res.json({ok:false,message:e.message});}
+    await client.start({
+      phoneNumber:()=>Promise.resolve(req.body.phone),
+      phoneCode:()=>Promise.resolve(req.body.code),
+      password:()=>{
+        if(req.body.password&&req.body.password.length>0) return Promise.resolve(req.body.password);
+        // Nếu không có password thì throw để client biết cần 2FA
+        const err=new Error('2FA_REQUIRED');
+        err.code=2;
+        throw err;
+      },
+      onError:(e)=>{throw e}
+    });
+    await saveSession(client.session.save());pendingClient=null;
+    log('✅ Session saved!');
+    res.json({ok:true});}
+  catch(e){
+    log('❌ '+e.message);
+    if(e.message==='2FA_REQUIRED'||e.message.includes('Password')||e.message.includes('password')){
+      res.json({ok:false,need2fa:true,message:'Tài khoản có 2FA - nhập mật khẩu Telegram'});
+    } else {
+      res.json({ok:false,message:e.message});
+    }
+  }
 });
 app.get('/api/auth/status',async(req,res)=>{const s=await getSession();res.json({connected:!!s});});
 
@@ -392,6 +412,7 @@ app.listen(PORT,'0.0.0.0',async()=>{
   const l=await db('get','leads','','order=created_at.asc');log('📋 Leads: '+l.length);
   const s=await getSession();log('🔐 Session: '+(s?'LOADED ✅':'NOT SET ❌'));
 });
+
 
 
 
