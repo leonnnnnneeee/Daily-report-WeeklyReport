@@ -299,9 +299,25 @@ export default function App() {
             <h2 style={{fontSize:20,fontWeight:700,marginBottom:6}}>Daily Reports</h2>
             <p style={{color:'#6B7280',fontSize:13,marginBottom:20}}>Tổng hợp Telegram DM + Lark Email • Tự generate sau mỗi scan • 8:00 sáng hàng ngày</p>
 
+            {/* Manual generate button */}
+            <div style={{background:'#EFF6FF',border:'1px solid #BFDBFE',borderRadius:12,padding:16,marginBottom:16}}>
+              <div style={{fontWeight:600,color:'#1E40AF',marginBottom:8,fontSize:13}}>📝 Workflow để có report đúng format:</div>
+              <div style={{fontSize:12,color:'#374151',marginBottom:10,lineHeight:1.8}}>
+                1. Vào tab <strong>Leads</strong> → bấm <strong>✏️</strong> cạnh mỗi lead → ghi note tình trạng<br/>
+                &nbsp;&nbsp;&nbsp;&nbsp;Ví dụ: <em>đang offer dịch vụ PR, đang discuss thêm</em><br/>
+                2. Bấm <strong>Generate Report</strong> bên dưới
+              </div>
+              <button onClick={async()=>{
+                const r=await fetch('/api/reports/generate',{method:'POST'});
+                if(r.ok){setTimeout(loadReports,2000);setTimeout(loadReports,5000);}
+              }} style={{background:'#1D4ED8',color:'#fff',border:'none',padding:'8px 20px',borderRadius:8,fontSize:13,fontWeight:600,cursor:'pointer'}}>
+                📊 Generate Report Now
+              </button>
+            </div>
+
             {reports.length===0?(
               <div style={{background:'#fff',border:'1px solid #E5E7EB',borderRadius:12,padding:40,textAlign:'center',color:'#9CA3AF'}}>
-                Chưa có report — bấm <strong>Auto Scan → Scan Now</strong>
+                Chưa có report — điền note leads rồi bấm Generate Report ở trên
               </div>
             ):(
               <div style={{display:'grid',gridTemplateColumns:'240px 1fr',gap:16}}>
