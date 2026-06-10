@@ -358,6 +358,7 @@ async function runScan(){
         log("  💬 "+name+" (@"+username+"): "+newMsgs.length+" tin mới / "+recent.length+" tin tổng");
         // Phân tích với OpenAI
         var aiResult = await analyzeWithOpenAI(recent, name, username);
+        log('  🤖 aiResult: '+(aiResult?JSON.stringify(aiResult).slice(0,80):'null'));
         var status='new', note='';
         if(aiResult && aiResult.status){
           status = aiResult.status;
@@ -456,6 +457,7 @@ app.listen(PORT,'0.0.0.0',async()=>{
   const l=await db('get','leads','','order=created_at.asc');log('📋 Leads: '+l.length);
   const s=await getSession();log('🔐 Session: '+(s?'LOADED ✅':'NOT SET ❌'));
 });
+
 
 
 
