@@ -351,11 +351,11 @@ async function runScan(){
         const username=entity.username||'';
         const name=((entity.firstName||'')+' '+(entity.lastName||'')).trim()||username||String(entity.id);
         const msgs=await client.getMessages(entity,{limit:50});
-        const newMsgs=msgs.filter(m=>m.date>cutoff&&m.message);
-        if(!newMsgs.length)continue;
-        // Phân tích TOÀN BỘ 50 tin gần nhất
+        // Lấy tất cả tin nhắn, không filter 24h
         const recent=msgs.filter(m=>m.message).map(m=>({fromMe:m.out,text:m.message}));
-        log("  💬 "+name+" (@"+username+"): "+newMsgs.length+" tin mới / "+recent.length+" tin tổng");
+        if(!recent.length)continue;
+        const newMsgs=msgs.filter(m=>m.date>cutoff&&m.message);
+        log("  💬 "+name+" (@"+username+"): "+recent.length+" tin nhắn ("+(newMsgs.length>0?newMsgs.length+" mới hôm nay":"không có mới")+")");
         // Phân tích với OpenAI
         var aiResult = await analyzeWithOpenAI(recent, name, username);
         log('  🤖 aiResult: '+(aiResult?JSON.stringify(aiResult).slice(0,80):'null'));
@@ -457,6 +457,7 @@ app.listen(PORT,'0.0.0.0',async()=>{
   const l=await db('get','leads','','order=created_at.asc');log('📋 Leads: '+l.length);
   const s=await getSession();log('🔐 Session: '+(s?'LOADED ✅':'NOT SET ❌'));
 });
+
 
 
 
