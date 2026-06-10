@@ -43,9 +43,21 @@ async function saveSession(s){
 let _openaiKey='';
 async function getOpenAIKey(){
   if(_openaiKey.length>10)return _openaiKey;
+  // Ưu tiên Railway env var trước
+  if(process.env.OPENAI_API_KEY&&process.env.OPENAI_API_KEY.length>10){
+    _openaiKey=process.env.OPENAI_API_KEY;
+    log('✅ OpenAI key from Railway env: '+_openaiKey.slice(0,15)+'...');
+    return _openaiKey;
+  }
+  // Fallback: load từ Supabase
   try{const r=await axios.get(SB_URL+'/rest/v1/sessions?key=eq.openai_key',{headers:SBH});
-    if(r.data&&r.data[0]&&r.data[0].value&&r.data[0].value.length>10){_openaiKey=r.data[0].value;log('✅ OpenAI key loaded');return _openaiKey;}}catch(e){}
-  return process.env.OPENAI_API_KEY||'';
+    if(r.data&&r.data[0]&&r.data[0].value&&r.data[0].value.length>10){
+      _openaiKey=r.data[0].value;
+      log('✅ OpenAI key from Supabase: '+_openaiKey.slice(0,15)+'...');
+      return _openaiKey;
+    }
+  }catch(e){}
+  return '';
 }
 
 async function analyzeConversation(name,username,messages){
@@ -404,6 +416,7 @@ app.listen(PORT,'0.0.0.0',async()=>{
   const s=await getSession();log('🔐 Session: '+(s?'LOADED ✅':'NOT SET ❌'));
   const k=await getOpenAIKey();log('🤖 OpenAI: '+(k?'READY ✅':'NOT SET ❌'));
 });
+
 
 
 
