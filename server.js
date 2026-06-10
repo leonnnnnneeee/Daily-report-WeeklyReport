@@ -50,23 +50,31 @@ async function getOpenAIKey(){
 
 async function analyzeConversation(name,username,messages){
   const key=await getOpenAIKey();
-  if(!key||key.length<10){log('⚠️ No OpenAI key');return null;}
+  if(!key||key.length<10){log('No OpenAI key - using fallback');return null;}
   try{
-    const msgText=messages.slice(0,30).map(function(m){return '['+(m.fromMe?'TÔI':name)+']: '+m.text;}).join('\n');
+    const msgText=messages.slice(0,40).map(function(m){return '['+(m.fromMe?'LEON':name)+']: '+m.text;}).join('\n');
+    const sysPrompt='Ban la sales analyst cho Leon - sales Coincu.com (crypto PR & media Vietnam).\nDoc TOAN BO conversation va phan tich theo quy trinh:\n1. Leon dang outreach du an crypto/Web3 nao?\n2. Tinh trang hien tai: da gui offer chua, lead phan hoi nhu the nao\n3. Muc do tiem nang\n\nTra ve JSON: {"is_lead":true/false,"status":"interested|waiting|no_budget|follow_up_needed|closed_won|closed_lost|new","note":"mo ta 1 cau tieng Viet ve tinh trang thuc te, vi du: dang offer dich vu PR CMC lead quan tam hoi gia; hoac: da gui gia $500 lead dang xem xet; hoac: lead bao chua co budget Q2; hoac: da chot deal goi CoinGecko","potential":"cao|trung binh|thap"}\nChi tra ve JSON.';
     const r=await axios.post('https://api.openai.com/v1/chat/completions',{
-      model:'gpt-4o-mini',max_tokens:150,
+      model:'gpt-4o-mini',max_tokens:200,
       messages:[
-        {role:'system',content:'Ban la sales analyst Coincu.com (crypto PR & media). Doc conversation va tra ve JSON: {"status":"interested|waiting|no_budget|follow_up_needed|closed_won|closed_lost|new","note":"mo ta ngan gon 1 cau tieng Viet ve tinh trang outreach, vi du: dang offer dich vu PR CMC, dang discuss them; hoac: chua co budget hien tai; hoac: da chot deal goi CoinGecko","is_lead":true/false}. Chi tra ve JSON.'},
-        {role:'user',content:'Conversation voi '+name+' (@'+username+'):\n\n'+msgText}
+        {role:'system',content:sysPrompt},
+        {role:'user',content:'Conversation cua Leon voi '+name+' (@'+username+'):\n\n'+msgText}
       ]
     },{headers:{'Authorization':'Bearer '+key,'Content-Type':'application/json'}});
     const text=r.data.choices[0].message.content;
-    const match=text.match(/\{[^{}]+\}/);
-    if(match){const result=JSON.parse(match[0]);log('  🤖 '+name+': '+result.status+' | '+result.note);return result;}
+    const match=text.match(/\{[\s\S]*?\}/);
+    if(match){
+      const result=JSON.parse(match[0]);
+      log('  🤖 '+name+': '+result.status+' ['+result.potential+'] | '+result.note);
+      return result;
+    }
     return null;
-  }catch(e){log('OpenAI error: '+e.response?.data?.error?.message||e.message);return null;}
+  }catch(e){
+    const em=e.response&&e.response.data&&e.response.data.error?e.response.data.error.message:e.message;
+    log('OpenAI error: '+em);
+    return null;
+  }
 }
-
 // ── LARK ───────────────────────────────────────────
 let _larkToken=null,_larkExpiry=0;
 async function getLarkToken(){
@@ -396,5 +404,6 @@ app.listen(PORT,'0.0.0.0',async()=>{
   const s=await getSession();log('🔐 Session: '+(s?'LOADED ✅':'NOT SET ❌'));
   const k=await getOpenAIKey();log('🤖 OpenAI: '+(k?'READY ✅':'NOT SET ❌'));
 });
+
 
 
