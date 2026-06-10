@@ -41,6 +41,8 @@ export default function App() {
   const [filterStatus,setFilterStatus]=useState('all')
   const [adding,setAdding]=useState(false)
   const [copied,setCopied]=useState(false)
+  const [selectedLeads,setSelectedLeads]=useState(new Set())
+  const [bulkDeleting,setBulkDeleting]=useState(false)
   const [newLead,setNewLead]=useState({name:'',website:'',sources:'',telegram_username:'',lark_email:'',research:'',note:'',status:'new'})
 
   const loadLeads=useCallback(async()=>{
@@ -89,6 +91,25 @@ export default function App() {
     await fetch('/api/reports/'+id,{method:'DELETE'})
     await loadReports()
     setSelectedReport(null)
+  }
+
+  async function bulkDeleteLeads(){
+    if(!selectedLeads.size)return
+    if(!confirm('Xóa '+selectedLeads.size+' leads đã chọn?'))return
+    setBulkDeleting(true)
+    await Promise.all([...selectedLeads].map(id=>fetch('/api/leads/'+id,{method:'DELETE'})))
+    setSelectedLeads(new Set())
+    await loadLeads()
+    setBulkDeleting(false)
+  }
+
+  function toggleLead(id){
+    setSelectedLeads(prev=>{const n=new Set(prev);n.has(id)?n.delete(id):n.add(id);return n})
+  }
+
+  function toggleAllLeads(leads){
+    if(selectedLeads.size===leads.length) setSelectedLeads(new Set())
+    else setSelectedLeads(new Set(leads.map(l=>l.id)))
   }
 
   async function updateStatus(id,status){
@@ -182,17 +203,42 @@ export default function App() {
         {/* LEADS */}
         {tab==='Leads'&&(
           <div>
-            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:18}}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
               <h2 style={{fontSize:20,fontWeight:700}}>Leads ({filtered.length})</h2>
-              <select value={filterStatus} onChange={e=>setFilterStatus(e.target.value)} style={{...inp,width:'auto'}}>
-                <option value="all">All Status</option>
-                {Object.entries(STATUS).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}
-              </select>
+              <div style={{display:'flex',gap:8,alignItems:'center'}}>
+                <select value={filterStatus} onChange={e=>{setFilterStatus(e.target.value);setSelectedLeads(new Set())}} style={{...inp,width:'auto'}}>
+                  <option value="all">All Status</option>
+                  {Object.entries(STATUS).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}
+                </select>
+              </div>
             </div>
-            {filtered.length===0&&<div style={{padding:40,color:'#9CA3AF',textAlign:'center',background:'#fff',borderRadius:12,border:'1px solid #E5E7EB'}}>Không có leads — bấm Auto Scan → Scan Now</div>}
+
+            {/* Bulk action bar */}
+            {selectedLeads.size>0&&(
+              <div style={{background:'#FEF2F2',border:'1px solid #FCA5A5',borderRadius:10,padding:'10px 16px',marginBottom:12,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                <span style={{fontSize:13,color:'#DC2626',fontWeight:600}}>Đã chọn {selectedLeads.size} leads</span>
+                <div style={{display:'flex',gap:8}}>
+                  <button onClick={()=>setSelectedLeads(new Set())} style={{...B.s,fontSize:12,padding:'5px 12px'}}>Bỏ chọn</button>
+                  <button onClick={bulkDeleteLeads} disabled={bulkDeleting} style={{...B.r,fontWeight:600,padding:'5px 14px',opacity:bulkDeleting?0.6:1}}>
+                    {bulkDeleting?'⏳ Đang xóa...':'🗑 Xóa '+selectedLeads.size+' leads'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Select all */}
+            {filtered.length>0&&(
+              <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8,padding:'0 4px'}}>
+                <input type="checkbox" checked={selectedLeads.size===filtered.length&&filtered.length>0} onChange={()=>toggleAllLeads(filtered)} style={{cursor:'pointer',width:15,height:15}}/>
+                <span style={{fontSize:12,color:'#6B7280'}}>Chọn tất cả ({filtered.length})</span>
+              </div>
+            )}
+
+            {filtered.length===0&&<div style={{padding:40,color:'#9CA3AF',textAlign:'center',background:'#fff',borderRadius:12,border:'1px solid #E5E7EB'}}>Không có leads</div>}
             {filtered.map(l=>(
-              <div key={l.id} style={{background:'#fff',border:'1px solid #E5E7EB',borderRadius:12,padding:'14px 18px',marginBottom:10}}>
-                <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:12}}>
+              <div key={l.id} style={{background:'#fff',border:'1px solid '+(selectedLeads.has(l.id)?'#7C3AED':'#E5E7EB'),borderRadius:12,padding:'14px 18px',marginBottom:8}}>
+                <div style={{display:'flex',alignItems:'flex-start',gap:10}}>
+                  <input type="checkbox" checked={selectedLeads.has(l.id)} onChange={()=>toggleLead(l.id)} style={{cursor:'pointer',width:15,height:15,marginTop:3,flexShrink:0}}/>
                   <div style={{flex:1}}>
                     <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:5}}>
                       <span style={{fontWeight:700,fontSize:14}}>{l.name}</span>
@@ -303,11 +349,27 @@ export default function App() {
                 </button>
               </div>
 
+              {/* Bulk delete bar */}
+              {selectedLeads.size>0&&(
+                <div style={{background:'#FEF2F2',border:'1px solid #FCA5A5',borderRadius:10,padding:'10px 16px',marginBottom:12,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                  <span style={{fontSize:13,color:'#DC2626',fontWeight:600}}>Đã chọn {selectedLeads.size} leads</span>
+                  <div style={{display:'flex',gap:8}}>
+                    <button onClick={()=>setSelectedLeads(new Set())} style={{...B.s,fontSize:12,padding:'5px 12px'}}>Bỏ chọn</button>
+                    <button onClick={bulkDeleteLeads} disabled={bulkDeleting} style={{...B.r,fontWeight:600,padding:'5px 14px'}}>
+                      {bulkDeleting?'⏳ Đang xóa...':'🗑 Xóa '+selectedLeads.size+' leads'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Preview bảng */}
               <div style={{overflowX:'auto'}}>
                 <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
                   <thead>
                     <tr>
+                      <th style={{background:'#FFF9C4',border:'1px solid #E5E7EB',padding:'8px 10px',textAlign:'center',width:36}}>
+                        <input type="checkbox" checked={selectedLeads.size===leads.length&&leads.length>0} onChange={()=>toggleAllLeads(leads)} style={{cursor:'pointer'}}/>
+                      </th>
                       {['STT','Name','Website','Sources','TG','Research','Note','Status',''].map(h=>(
                         <th key={h} style={{background:'#FFF9C4',border:'1px solid #E5E7EB',padding:'8px 10px',textAlign:'center',fontWeight:600,whiteSpace:'nowrap'}}>{h}</th>
                       ))}
@@ -318,7 +380,10 @@ export default function App() {
                       const bg=l.status==='no_budget'||l.status==='closed_lost'?'#FCE4EC':
                                l.status==='interested'||l.status==='waiting'||l.status==='follow_up_needed'?'#E8F5E9':'#fff';
                       return(
-                        <tr key={l.id} style={{background:bg}}>
+                        <tr key={l.id} style={{background:selectedLeads.has(l.id)?'#EDE9FE':bg}}>
+                          <td style={{border:'1px solid #E5E7EB',padding:'6px 8px',textAlign:'center'}}>
+                            <input type="checkbox" checked={selectedLeads.has(l.id)} onChange={()=>toggleLead(l.id)} style={{cursor:'pointer'}}/>
+                          </td>
                           <td style={{border:'1px solid #E5E7EB',padding:'6px 8px',textAlign:'center'}}>{i+1}</td>
                           <td style={{border:'1px solid #E5E7EB',padding:'6px 8px',fontWeight:600}}>{l.name}</td>
                           <td style={{border:'1px solid #E5E7EB',padding:'6px 8px',maxWidth:120,overflow:'hidden',textOverflow:'ellipsis'}}>{l.website}</td>
