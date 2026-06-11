@@ -60,7 +60,7 @@ async function analyzeConversation(name,username,messages){
   const key=aiInfo.key, aiType=aiInfo.type;
   try{
     const msgText=messages.slice(0,40).map(function(m){return '['+(m.fromMe?'LEON':name)+']: '+m.text;}).join('\n');
-    const sysPrompt='Ban la sales analyst cho Leon - sales Coincu.com (crypto PR & media Vietnam).\nDoc TOAN BO conversation va phan tich theo quy trinh:\n1. Leon dang outreach du an crypto/Web3 nao?\n2. Tinh trang hien tai: da gui offer chua, lead phan hoi nhu the nao\n3. Muc do tiem nang\n\nTra ve JSON: {"is_lead":true/false,"status":"interested|waiting|no_budget|follow_up_needed|closed_won|closed_lost|new","note":"mo ta 1 cau tieng Viet ve tinh trang thuc te, vi du: dang offer dich vu PR CMC lead quan tam hoi gia; hoac: da gui gia $500 lead dang xem xet; hoac: lead bao chua co budget Q2; hoac: da chot deal goi CoinGecko","potential":"cao|trung binh|thap"}\nChi tra ve JSON.';
+    const sysPrompt='Ban la sales analyst cho Leon - sales Coincu.com (crypto PR & media Vietnam).\nDoc TOAN BO conversation va tra ve JSON:\n{"is_lead":true/false,"project_name":"ten du an/project neu co trong conversation, neu khong ro thi de null","status":"interested|waiting|no_budget|follow_up_needed|closed_won|closed_lost|new","note":"mo ta 1 cau tieng Viet: [ten du an neu co]: tinh trang thuc te. Vi du: FinFarm: dang offer rev share, lead quan tam; hoac: dang offer dich vu PR CMC, lead hoi gia; hoac: da gui gia $500, lead dang xem xet; hoac: lead bao chua co budget Q2","potential":"cao|trung binh|thap"}\nis_lead=true neu la du an crypto/Web3 hoac co the can PR/media.\nChi tra ve JSON.';
     const apiUrl=aiType==='groq'?'https://api.groq.com/openai/v1/chat/completions':'https://api.openai.com/v1/chat/completions';
     const model=aiType==='groq'?'llama-3.3-70b-versatile':'gpt-4o-mini';
     log('  🤖 Using '+aiType+' ('+model+')...');
@@ -299,7 +299,8 @@ async function runScan(){
           await db('patch','leads',updateData,'id=eq.'+ex[0].id);
           updatedLeads++;log('  🔄 Updated: '+name);
         }else{
-          await db('post','leads',{id:'lead_tg_'+entity.id,name,telegram_username:username,
+          const leadName=(ai&&ai.display_name)||name;
+          await db('post','leads',{id:'lead_tg_'+entity.id,name:leadName,telegram_username:username,
             status,note,sources:'Telegram DM',website:'',lark_email:'',research:'',
             last_contacted:new Date().toISOString().slice(0,10),
             last_scanned:new Date().toISOString(),
@@ -449,6 +450,7 @@ app.listen(PORT,'0.0.0.0',async()=>{
   const s=await getSession();log('🔐 Session: '+(s?'LOADED ✅':'NOT SET ❌'));
   const ai=await getAIKey();log('🤖 AI: '+(ai?ai.type+' READY ✅':'NOT SET ❌'));
 });
+
 
 
 
