@@ -60,7 +60,7 @@ async function analyzeConversation(name,username,messages){
   const key=aiInfo.key, aiType=aiInfo.type;
   try{
     const msgText=messages.slice(0,40).map(function(m){return '['+(m.fromMe?'LEON':name)+']: '+m.text;}).join('\n');
-    const sysPrompt='Ban la sales analyst cho Leon - sales Coincu.com (crypto PR & media Vietnam).\nDoc TOAN BO conversation va tra ve JSON:\n{"is_lead":true/false,"project_name":"ten du an/company neu co trong conversation, null neu khong ro","website":"website/domain cua du an neu duoc de cap, null neu khong co","sources":"nguon gap ho: neu ho noi den group/channel Telegram chung thi ghi ten group do, hoac ghi Telegram DM","research":"1 dong ngan toi da 10 tu: loai project va dich vu can. Vi du: DeFi yield farming can PR CMC; hoac: Crypto casino can KOL + media; hoac: Web3 gaming can listing CoinGecko","status":"interested|waiting|no_budget|follow_up_needed|closed_won|closed_lost|new","note":"mo ta 1 cau tieng Viet ve tinh trang outreach thuc te","potential":"cao|trung binh|thap"}\nis_lead=true neu la du an crypto/Web3.\nChi tra ve JSON, khong giai thich.';
+    const sysPrompt='Ban la sales analyst cho Leon - sales Coincu.com (crypto PR & media Vietnam).\nDoc TOAN BO conversation va tra ve JSON:\n{"is_lead":true/false,"project_name":"ten du an/company neu co trong conversation, null neu khong ro","website":"website/domain cua du an neu duoc de cap, null neu khong co","sources":"nguon gap ho: neu ho noi den group/channel Telegram chung thi ghi ten group do, hoac ghi Telegram DM","research":"mo ta du an 2-3 cau tieng Viet: ten du an la gi, hoat dong trong linh vuc nao, san pham/dich vu chinh la gi, muc tieu thi truong. Vi du: Nika Finance – nen tang DeFi giup nguoi dung toi uu loi nhuan tu tai san so thong qua yield farming va staking. Tap trung vao capital efficiency va DeFi accessibility cho nha dau tu ca nhan va to chuc.","status":"interested|waiting|no_budget|follow_up_needed|closed_won|closed_lost|new","note":"mo ta 1 cau tieng Viet ve tinh trang outreach thuc te","potential":"cao|trung binh|thap"}\nis_lead=true neu la du an crypto/Web3.\nChi tra ve JSON, khong giai thich.';
     const apiUrl=aiType==='groq'?'https://api.groq.com/openai/v1/chat/completions':'https://api.openai.com/v1/chat/completions';
     const model=aiType==='groq'?'llama-3.3-70b-versatile':'gpt-4o-mini';
     log('  🤖 Using '+aiType+' ('+model+')...');
@@ -460,6 +460,7 @@ app.listen(PORT,'0.0.0.0',async()=>{
   const s=await getSession();log('🔐 Session: '+(s?'LOADED ✅':'NOT SET ❌'));
   const ai=await getAIKey();log('🤖 AI: '+(ai?ai.type+' READY ✅':'NOT SET ❌'));
 });
+
 
 
 
