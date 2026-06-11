@@ -265,9 +265,13 @@ async function runScan(){
         const username=entity.username||'';
         const name=((entity.firstName||'')+' '+(entity.lastName||'')).trim()||username||String(entity.id);
         const msgs=await client.getMessages(entity,{limit:50});
+        const cutoff=Date.now()/1000-24*3600;
+        // Chỉ xử lý nếu có tin nhắn mới trong 24h
+        const newMsgs=msgs.filter(m=>m.date>cutoff&&m.message);
+        if(!newMsgs.length)continue;
+        // Nhưng đưa vào AI toàn bộ 50 tin để hiểu context
         const recent=msgs.filter(m=>m.message).map(m=>({fromMe:m.out,text:m.message}));
-        if(!recent.length)continue;
-        log('  💬 '+name+' (@'+username+'): '+recent.length+' msgs');
+        log('  💬 '+name+' (@'+username+'): '+newMsgs.length+' tin mới / '+recent.length+' tổng');
 
         // Phân tích với OpenAI
         const ai=await analyzeConversation(name,username,recent);
@@ -416,6 +420,7 @@ app.listen(PORT,'0.0.0.0',async()=>{
   const s=await getSession();log('🔐 Session: '+(s?'LOADED ✅':'NOT SET ❌'));
   const k=await getOpenAIKey();log('🤖 OpenAI: '+(k?'READY ✅':'NOT SET ❌'));
 });
+
 
 
 
