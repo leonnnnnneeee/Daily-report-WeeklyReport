@@ -60,7 +60,7 @@ async function analyzeConversation(name,username,messages){
   const key=aiInfo.key, aiType=aiInfo.type;
   try{
     const msgText=messages.slice(0,40).map(function(m){return '['+(m.fromMe?'LEON':name)+']: '+m.text;}).join('\n');
-    const sysPrompt='Ban la sales analyst cho Leon - sales Coincu.com (crypto PR & media Vietnam).\nDoc TOAN BO conversation va tra ve JSON:\n{"is_lead":true/false,"project_name":"ten du an/project neu co trong conversation, neu khong ro thi de null","status":"interested|waiting|no_budget|follow_up_needed|closed_won|closed_lost|new","note":"mo ta 1 cau tieng Viet: [ten du an neu co]: tinh trang thuc te. Vi du: FinFarm: dang offer rev share, lead quan tam; hoac: dang offer dich vu PR CMC, lead hoi gia; hoac: da gui gia $500, lead dang xem xet; hoac: lead bao chua co budget Q2","potential":"cao|trung binh|thap"}\nis_lead=true neu la du an crypto/Web3 hoac co the can PR/media.\nChi tra ve JSON.';
+    const sysPrompt='Ban la sales analyst cho Leon - sales Coincu.com (crypto PR & media Vietnam).\nDoc TOAN BO conversation va tra ve JSON:\n{"is_lead":true/false,"project_name":"ten du an/company neu co trong conversation, null neu khong ro","website":"website/domain cua du an neu duoc de cap, null neu khong co","sources":"nguon gap ho: neu ho noi den group/channel Telegram chung thi ghi ten group do, hoac ghi Telegram DM","research":"mo ta ngan ve du an: loai project, dich vu ho can, thong tin thi truong neu biet","status":"interested|waiting|no_budget|follow_up_needed|closed_won|closed_lost|new","note":"mo ta 1 cau tieng Viet ve tinh trang outreach thuc te","potential":"cao|trung binh|thap"}\nis_lead=true neu la du an crypto/Web3.\nChi tra ve JSON, khong giai thich.';
     const apiUrl=aiType==='groq'?'https://api.groq.com/openai/v1/chat/completions':'https://api.openai.com/v1/chat/completions';
     const model=aiType==='groq'?'llama-3.3-70b-versatile':'gpt-4o-mini';
     log('  🤖 Using '+aiType+' ('+model+')...');
@@ -296,12 +296,22 @@ async function runScan(){
         if(ex&&ex.length>0){
           const updateData={status,last_scanned:new Date().toISOString(),last_contacted:new Date().toISOString().slice(0,10)};
           if(!ex[0].note||ex[0].note.trim()==='')updateData.note=note;
+          // Fill thêm thông tin nếu chưa có
+          if(ai){
+            if(!ex[0].website&&ai.website&&ai.website!=='null')updateData.website=ai.website;
+            if(!ex[0].research&&ai.research&&ai.research!=='null')updateData.research=ai.research;
+            if((!ex[0].sources||ex[0].sources==='Telegram DM')&&ai.sources&&ai.sources!=='null'&&ai.sources!=='Telegram DM')updateData.sources=ai.sources;
+            if(ai.project_name&&ai.project_name!=='null'&&ex[0].name===name)updateData.name=ai.project_name;
+          }
           await db('patch','leads',updateData,'id=eq.'+ex[0].id);
           updatedLeads++;log('  🔄 Updated: '+name);
         }else{
-          const leadName=(ai&&ai.display_name)||name;
+          const leadName=(ai&&ai.project_name&&ai.project_name!=='null'?ai.project_name:name);
+          const leadWebsite=(ai&&ai.website&&ai.website!=='null'?ai.website:'');
+          const leadSources=(ai&&ai.sources&&ai.sources!=='null'?ai.sources:'Telegram DM');
+          const leadResearch=(ai&&ai.research&&ai.research!=='null'?ai.research:'');
           await db('post','leads',{id:'lead_tg_'+entity.id,name:leadName,telegram_username:username,
-            status,note,sources:'Telegram DM',website:'',lark_email:'',research:'',
+            status,note,sources:leadSources,website:leadWebsite,lark_email:'',research:leadResearch,
             last_contacted:new Date().toISOString().slice(0,10),
             last_scanned:new Date().toISOString(),
             week:Math.ceil((new Date()-new Date(new Date().getFullYear(),0,1))/604800000)});
@@ -450,6 +460,7 @@ app.listen(PORT,'0.0.0.0',async()=>{
   const s=await getSession();log('🔐 Session: '+(s?'LOADED ✅':'NOT SET ❌'));
   const ai=await getAIKey();log('🤖 AI: '+(ai?ai.type+' READY ✅':'NOT SET ❌'));
 });
+
 
 
 
