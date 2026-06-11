@@ -18,6 +18,23 @@ log('🚀 Coincu Sales v11 - Clean Build');
 // Install openpyxl at startup
 try{require('child_process').execSync('pip3 install openpyxl --break-system-packages -q 2>/dev/null||true',{timeout:30000});}catch(e){}
 
+// ── AUTH MIDDLEWARE ────────────────────────────────
+const VALID_TOKEN='coincu_leon_2024_secure';
+function requireAuth(req,res,next){
+  const token=req.headers['x-auth-token']||req.query.token;
+  if(token===VALID_TOKEN)return next();
+  res.status(401).json({error:'Unauthorized'});
+}
+
+app.post('/api/login',(req,res)=>{
+  const{username,password}=req.body;
+  if(username==='Leon'&&password==='coincu123'){
+    res.json({ok:true,token:VALID_TOKEN});
+  }else{
+    res.json({ok:false,message:'Sai username hoặc password'});
+  }
+});
+
 // ── DB ─────────────────────────────────────────────
 async function db(method,table,data,query=''){
   try{const r=await axios({method,url:SB_URL+'/rest/v1/'+table+(query?'?'+query:''),headers:SBH,data});return r.data||[];}
@@ -117,7 +134,7 @@ async function scanLarkEmails(){
 }
 
 // ── LEADS API ──────────────────────────────────────
-app.get('/api/leads',async(req,res)=>res.json(await db('get','leads','','order=created_at.asc')));
+app.get('/api/leads',requireAuth,async(req,res)=>res.json(await db('get','leads','','order=created_at.asc')));
 app.post('/api/leads',async(req,res)=>{
   const lead={id:'lead_'+Date.now(),name:req.body.name||(req.body.telegram_username||req.body.lark_email||'Unknown'),
     website:req.body.website||'',sources:req.body.sources||'',
@@ -142,7 +159,7 @@ app.get('/api/stats',async(req,res)=>{
 });
 
 // ── REPORTS API ────────────────────────────────────
-app.get('/api/reports',async(req,res)=>res.json(await db('get','reports','','order=created_at.desc&limit=30')));
+app.get('/api/reports',requireAuth,async(req,res)=>res.json(await db('get','reports','','order=created_at.desc&limit=30')));
 app.get('/api/reports/latest',async(req,res)=>{const r=await db('get','reports','','order=created_at.desc&limit=1');res.json(r[0]||null);});
 app.delete('/api/reports/:id',async(req,res)=>{await db('delete','reports',null,'id=eq.'+req.params.id);res.json({ok:true});});
 
@@ -235,7 +252,7 @@ app.post('/api/scan/lead/:id',async(req,res)=>{
 });
 
 // ── MAIN SCAN ──────────────────────────────────────
-app.post('/api/scan',async(req,res)=>{log('🔍 Manual scan');res.json({ok:true});runScan().catch(e=>log('❌ '+e.message));});
+app.post('/api/scan',requireAuth,async(req,res)=>{log('🔍 Manual scan');res.json({ok:true});runScan().catch(e=>log('❌ '+e.message));});
 
 async function runScan(){
   const{TelegramClient}=require('telegram');const{StringSession}=require('telegram/sessions');
@@ -460,6 +477,7 @@ app.listen(PORT,'0.0.0.0',async()=>{
   const s=await getSession();log('🔐 Session: '+(s?'LOADED ✅':'NOT SET ❌'));
   const ai=await getAIKey();log('🤖 AI: '+(ai?ai.type+' READY ✅':'NOT SET ❌'));
 });
+
 
 
 
