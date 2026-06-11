@@ -357,8 +357,11 @@ async function generateReport(newLeads,updatedLeads){
   const lines=activeLeads.map(function(l){
     var note=(l.note||'').trim();
     if(!note)note=statusNote[l.status]||l.status;
-    var tg=l.telegram_username?' (@'+l.telegram_username+')':'';
-    return '- '+l.name+tg+': '+note;
+    // Lấy tên ngắn: tên đầu tiên hoặc username ngắn
+    var shortName=l.name.split(' ')[0]||l.telegram_username||l.name;
+    // Nếu tên quá dài (full name) thì dùng username
+    if(l.name.length>20&&l.telegram_username) shortName=l.telegram_username;
+    return '- '+shortName+': '+note;
   });
 
   const NL='\n';
@@ -370,12 +373,14 @@ async function generateReport(newLeads,updatedLeads){
   if(aiInfo){
     try{
       const leadsContext=activeLeads.map(function(l){
-        return l.name+(l.telegram_username?' (@'+l.telegram_username+')':'')+': '+l.status+' - '+(l.note||'');
+        var shortName=l.name.split(' ')[0]||l.telegram_username||l.name;
+        if(l.name.length>20&&l.telegram_username) shortName=l.telegram_username;
+        return shortName+': '+l.status+' - '+(l.note||'');
       }).join('\n');
       const r=await axios.post('https://api.groq.com/openai/v1/chat/completions',{
         model:'llama-3.3-70b-versatile',max_tokens:300,
         messages:[
-          {role:'system',content:'Ban la sales analyst Coincu.com. Dua ra plan reachout cu the cho ngay mai dua tren tinh trang cac leads hom nay. Tra ve danh sach plan duoi dang bullet points bang tieng Viet, bat dau bang "- ". Moi plan phai cu the va thuc te, khong chung chung. Vi du: "- Follow up Degen Sing hoi them ve goi KOL package $500", "- Gui bao gia cho MrWardag sau khi het busy", "- Remind NewsPatrolling ve offer CMC listing". Cuoi them: "- Tim them lead moi tu Telegram", "- Collect lai date email gui email remind"'},
+          {role:'system',content:'Ban la sales analyst Coincu.com. Dua ra plan reachout cu the cho ngay mai. Yeu cau: chi dung ten ngan (ten dau hoac username, KHONG dung full name), tieng Viet, bullet points bat dau bang "- ". Cu the theo tinh trang tung lead. Vi du: "- Follow up Degen Sing hoi them gia goi KOL", "- Gui bao gia MrWardag sau khi het busy", "- Remind Joycie ve offer CMC listing". Cuoi them: "- Tim them lead moi tu Telegram", "- Collect lai date email gui email remind"'},
           {role:'user',content:'Leads hom nay ('+d+'):\n'+leadsContext}
         ]
       },{headers:{'Authorization':'Bearer '+aiInfo.key,'Content-Type':'application/json'}});
@@ -444,6 +449,7 @@ app.listen(PORT,'0.0.0.0',async()=>{
   const s=await getSession();log('🔐 Session: '+(s?'LOADED ✅':'NOT SET ❌'));
   const ai=await getAIKey();log('🤖 AI: '+(ai?ai.type+' READY ✅':'NOT SET ❌'));
 });
+
 
 
 
