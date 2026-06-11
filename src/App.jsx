@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import ScanTab from './ScanTab'
+import Login from './Login'
 
 const STATUS = {
   new:{label:'New',color:'#6B7280',bg:'#F3F4F6'},
@@ -58,6 +59,7 @@ function NoteEdit({lead, onSave}){
 const TABS = ['Dashboard','Leads','Daily Report','Weekly Report','Auto Scan','Add Lead']
 
 export default function App() {
+  const [token,setToken]=useState(()=>localStorage.getItem('auth_token')||'')
   const [tab,setTab]=useState('Dashboard')
   const [leads,setLeads]=useState([])
   const [reports,setReports]=useState([])
@@ -94,7 +96,7 @@ export default function App() {
     if(!newLead.telegram_username.trim()&&!newLead.lark_email.trim())return alert('Nhập Telegram username hoặc Lark email!')
     setAdding(true)
     const leadData={...newLead,name:newLead.telegram_username||newLead.lark_email||'Unknown'}
-    const r=await fetch('/api/leads',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(leadData)})
+    const r=await fetch('/api/leads',{method:'POST',headers:{'Content-Type':'application/json','x-auth-token':token},body:JSON.stringify(leadData)})
     const d=await r.json()
     setNewLead({name:'',website:'',sources:'',telegram_username:'',lark_email:'',research:'',note:'',status:'new'})
     await loadLeads();setAdding(false);setTab('Leads')
@@ -107,12 +109,12 @@ export default function App() {
 
   async function deleteLead(id){
     if(!confirm('Xóa lead này?'))return
-    await fetch('/api/leads/'+id,{method:'DELETE'});await loadLeads()
+    await fetch('/api/leads/'+id,{method:'DELETE',headers:{'x-auth-token':token}});await loadLeads()
   }
 
   async function deleteReport(id){
     if(!confirm('Xóa report này?'))return
-    await fetch('/api/reports/'+id,{method:'DELETE'})
+    await fetch('/api/reports/'+id,{method:'DELETE',headers:{'x-auth-token':token}})
     await loadReports()
     setSelectedReport(null)
   }
@@ -121,7 +123,7 @@ export default function App() {
     if(!selectedLeads.size)return
     if(!confirm('Xóa '+selectedLeads.size+' leads đã chọn?'))return
     setBulkDeleting(true)
-    await Promise.all([...selectedLeads].map(id=>fetch('/api/leads/'+id,{method:'DELETE'})))
+    await Promise.all([...selectedLeads].map(id=>fetch('/api/leads/'+id,{method:'DELETE',headers:{'x-auth-token':token}})))
     setSelectedLeads(new Set())
     await loadLeads()
     setBulkDeleting(false)
@@ -137,9 +139,11 @@ export default function App() {
   }
 
   async function updateStatus(id,status){
-    await fetch('/api/leads/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({status})})
+    await fetch('/api/leads/'+id,{method:'PATCH',headers:{'Content-Type':'application/json','x-auth-token':token},body:JSON.stringify({status})})
     await loadLeads()
   }
+
+  if(!token) return <Login onLogin={t=>{setToken(t);localStorage.setItem('auth_token',t);}} />
 
   return (
     <div style={{minHeight:'100vh',background:'#F9FAFB',fontFamily:"'DM Sans','Helvetica Neue',sans-serif"}}>
@@ -155,7 +159,10 @@ export default function App() {
             </button>
           ))}
         </div>
-        <div style={{fontSize:12,color:'#555'}}>auto-refresh 10s</div>
+        <div style={{display:'flex',gap:12,alignItems:'center'}}>
+          <div style={{fontSize:12,color:'#555'}}>auto-refresh 10s</div>
+          <button onClick={()=>{localStorage.removeItem('auth_token');setToken('');}} style={{fontSize:11,padding:'4px 10px',background:'transparent',border:'1px solid #444',borderRadius:5,color:'#666',cursor:'pointer'}}>Đăng xuất</button>
+        </div>
       </div>
 
       <div style={{padding:24,maxWidth:1080,margin:'0 auto'}}>
@@ -271,7 +278,7 @@ export default function App() {
                     </div>
                     {l.research&&<div style={{fontSize:13,color:'#6B7280',marginBottom:6,lineHeight:1.5}}>{l.research}</div>}
                     <NoteEdit lead={l} onSave={async(id,note)=>{
-                      await fetch('/api/leads/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({note})});
+                      await fetch('/api/leads/'+id,{method:'PATCH',headers:{'Content-Type':'application/json','x-auth-token':token},body:JSON.stringify({note})});
                       await loadLeads();
                     }}/>
                     <div style={{fontSize:12,color:'#9CA3AF',display:'flex',gap:12,flexWrap:'wrap'}}>
