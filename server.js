@@ -42,27 +42,15 @@ async function saveSession(s){
 // ── OPENAI ─────────────────────────────────────────
 let _aiKey='';
 async function getAIKey(){
-  if(_aiKey.length>10)return {key:_aiKey,type:_aiKey.startsWith('gsk_')?'groq':'openai'};
-  // Groq trước (miễn phí)
-  if(process.env.GROQ_API_KEY&&process.env.GROQ_API_KEY.length>10){
-    _aiKey=process.env.GROQ_API_KEY;
-    log('✅ Groq key from Railway env');
+  if(_aiKey.length>10)return {key:_aiKey,type:'groq'};
+  // Groq only
+  const groqKey=process.env.GROQ_API_KEY||'';
+  if(groqKey.length>10){
+    _aiKey=groqKey;
+    log('✅ Groq key loaded: '+groqKey.slice(0,15)+'...');
     return {key:_aiKey,type:'groq'};
   }
-  // OpenAI fallback
-  if(process.env.OPENAI_API_KEY&&process.env.OPENAI_API_KEY.length>10){
-    _aiKey=process.env.OPENAI_API_KEY;
-    log('✅ OpenAI key from Railway env');
-    return {key:_aiKey,type:'openai'};
-  }
-  // Supabase fallback
-  try{
-    const r=await axios.get(SB_URL+'/rest/v1/sessions?key=eq.openai_key',{headers:SBH});
-    if(r.data&&r.data[0]&&r.data[0].value&&r.data[0].value.length>10){
-      _aiKey=r.data[0].value;
-      return {key:_aiKey,type:'openai'};
-    }
-  }catch(e){}
+  log('⚠️ No GROQ_API_KEY in Railway env');
   return null;
 }
 
@@ -74,7 +62,7 @@ async function analyzeConversation(name,username,messages){
     const msgText=messages.slice(0,40).map(function(m){return '['+(m.fromMe?'LEON':name)+']: '+m.text;}).join('\n');
     const sysPrompt='Ban la sales analyst cho Leon - sales Coincu.com (crypto PR & media Vietnam).\nDoc TOAN BO conversation va phan tich theo quy trinh:\n1. Leon dang outreach du an crypto/Web3 nao?\n2. Tinh trang hien tai: da gui offer chua, lead phan hoi nhu the nao\n3. Muc do tiem nang\n\nTra ve JSON: {"is_lead":true/false,"status":"interested|waiting|no_budget|follow_up_needed|closed_won|closed_lost|new","note":"mo ta 1 cau tieng Viet ve tinh trang thuc te, vi du: dang offer dich vu PR CMC lead quan tam hoi gia; hoac: da gui gia $500 lead dang xem xet; hoac: lead bao chua co budget Q2; hoac: da chot deal goi CoinGecko","potential":"cao|trung binh|thap"}\nChi tra ve JSON.';
     const apiUrl=aiType==='groq'?'https://api.groq.com/openai/v1/chat/completions':'https://api.openai.com/v1/chat/completions';
-    const model=aiType==='groq'?'llama-3.1-70b-versatile':'gpt-4o-mini';
+    const model=aiType==='groq'?'llama3-70b-8192':'gpt-4o-mini';
     log('  🤖 Using '+aiType+' ('+model+')...');
     const r=await axios.post(apiUrl,{
       model:model,max_tokens:200,
@@ -430,6 +418,7 @@ app.listen(PORT,'0.0.0.0',async()=>{
   const s=await getSession();log('🔐 Session: '+(s?'LOADED ✅':'NOT SET ❌'));
   const ai=await getAIKey();log('🤖 AI: '+(ai?ai.type+' READY ✅':'NOT SET ❌'));
 });
+
 
 
 
