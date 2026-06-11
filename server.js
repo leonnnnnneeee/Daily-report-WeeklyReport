@@ -255,8 +255,8 @@ async function runScan(){
   log('🔐 Session: '+(session?'YES ✅':'NO ❌'));
   if(!session){log('⚠️ No session - authenticate first');return;}
 
-  const aiKey=await getOpenAIKey();
-  log('🤖 OpenAI key: '+(aiKey?aiKey.slice(0,15)+'... ('+aiKey.length+' chars)':'NOT SET'));
+  const aiInfo=await getAIKey();
+  log('🤖 AI: '+(aiInfo?aiInfo.type+' ready ✅':'NOT SET ❌'));
 
   let newLeads=0,updatedLeads=0;
 
@@ -428,8 +428,9 @@ app.listen(PORT,'0.0.0.0',async()=>{
   log('✅ Ready on port '+PORT);
   const l=await db('get','leads','','order=created_at.asc');log('📋 Leads: '+l.length);
   const s=await getSession();log('🔐 Session: '+(s?'LOADED ✅':'NOT SET ❌'));
-  const k=await getOpenAIKey();log('🤖 OpenAI: '+(k?'READY ✅':'NOT SET ❌'));
+  const ai=await getAIKey();log('🤖 AI: '+(ai?ai.type+' READY ✅':'NOT SET ❌'));
 });
+
 
 
 
