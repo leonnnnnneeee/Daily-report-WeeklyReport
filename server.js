@@ -338,28 +338,26 @@ async function runScan(){
 // ── GENERATE REPORT ────────────────────────────────
 async function generateReport(newLeads,updatedLeads){
   const leads=await db('get','leads','','order=updated_at.desc');
-  if(!leads.length){log('⚠️ No leads');return;}
+  if(!leads.length){log('No leads for report');return;}
   const today=new Date();
   const d=today.getDate()+'-'+(today.getMonth()+1);
-  
-  // Chỉ đưa vào report những leads có hoạt động thực sự
-  // Ưu tiên: interested, follow_up_needed, no_budget, closed
-  // waiting chỉ hiện nếu có note cụ thể (không phải fallback)
-  const activeLeads=leads.filter(l=>{
+
+  const activeLeads=leads.filter(function(l){
     if(l.status==='new')return false;
-    if(l.status==='interested'||l.status==='follow_up_needed'||l.status==='no_budget'||l.status==='closed_won'||l.status==='closed_lost')return true;
+    if(['interested','follow_up_needed','no_budget','closed_won','closed_lost'].includes(l.status))return true;
     if(l.status==='waiting'){
-      const note=l.note||'';
-      return note&&note!=='đang trao đổi'&&note!=='đang đợi phản hồi'&&note.length>5;
+      const n=l.note||'';
+      return n&&n!=='đang trao đổi'&&n!=='đang đợi phản hồi'&&n!=='hẹn lại sau'&&n.length>5;
     }
     return false;
   });
+
   const fu=leads.filter(l=>l.status==='follow_up_needed');
-  
-  log('📋 Report: '+activeLeads.length+' leads, '+fu.length+' follow ups');
+  const waiting=leads.filter(l=>l.status==='waiting');
+  const interested=leads.filter(l=>l.status==='interested');
 
   const statusNote={interested:'đang quan tâm dịch vụ',waiting:'đang đợi phản hồi',no_budget:'chưa có budget',follow_up_needed:'cần follow up',closed_won:'đã chốt deal',closed_lost:'không quan tâm'};
-  
+
   const lines=activeLeads.map(function(l){
     var note=(l.note||'').trim();
     if(!note)note=statusNote[l.status]||l.status;
@@ -367,22 +365,28 @@ async function generateReport(newLeads,updatedLeads){
     return '- '+l.name+tg+': '+note;
   });
 
-  const fuLine=fu.length>0?'- Follow up: '+fu.map(l=>l.name).join(', '):'- Reach out các lead mới';
-  const sep='\n';
-  const content='E gửi Standup note ngày '+d+':'+sep+
-    '1. What did you accomplish yesterday?'+sep+
-    (lines.length>0?lines.join(sep):'- Không có hoạt động mới')+sep+sep+
-    '2. What are you planning to do today?'+sep+
-    fuLine+sep+
-    '- Tìm thêm lead mới từ Telegram'+sep+
-    '- Collect lại date email gửi email remind';
+  const planLines=[];
+  if(interested.length>0) planLines.push('- Follow up leads đang quan tâm: '+interested.map(l=>l.name).join(', '));
+  if(fu.length>0) planLines.push('- Reach out lại leads chưa reply: '+fu.map(l=>l.name).join(', '));
+  if(waiting.length>0&&waiting.length<=5) planLines.push('- Check lại leads đang đợi: '+waiting.map(l=>l.name).join(', '));
+  else if(waiting.length>5) planLines.push('- Check lại '+waiting.length+' leads đang đợi');
+  planLines.push('- Tìm thêm lead mới từ Telegram');
+  planLines.push('- Collect lại date email gửi email remind');
+
+  const NL='\n';
+  const content='E gửi Standup note ngày '+d+':'+NL+
+    '1. What did you accomplish yesterday?'+NL+
+    (lines.length>0?lines.join(NL):'- Không có hoạt động mới')+NL+NL+
+    '2. What are you planning to do today?'+NL+
+    planLines.join(NL);
 
   try{
-    await db('post','reports',{id:'report_'+Date.now(),date:today.toISOString().slice(0,10),content,leads_scanned:leads.length,new_leads:newLeads,updated_leads:updatedLeads});
+    await db('post','reports',{id:'report_'+Date.now(),date:today.toISOString().slice(0,10),content:content,leads_scanned:leads.length,new_leads:newLeads,updated_leads:updatedLeads});
     log('✅ Report saved!');
     log(content.slice(0,200));
   }catch(e){log('❌ Report: '+e.message);}
 }
+
 
 // ── WEEKLY EXCEL ───────────────────────────────────
 app.get('/api/weekly-excel',async(req,res)=>{
@@ -418,6 +422,7 @@ app.listen(PORT,'0.0.0.0',async()=>{
   const s=await getSession();log('🔐 Session: '+(s?'LOADED ✅':'NOT SET ❌'));
   const ai=await getAIKey();log('🤖 AI: '+(ai?ai.type+' READY ✅':'NOT SET ❌'));
 });
+
 
 
 
