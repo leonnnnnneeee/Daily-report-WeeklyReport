@@ -352,10 +352,6 @@ async function generateReport(newLeads,updatedLeads){
     return false;
   });
 
-  const fu=leads.filter(l=>l.status==='follow_up_needed');
-  const waiting=leads.filter(l=>l.status==='waiting');
-  const interested=leads.filter(l=>l.status==='interested');
-
   const statusNote={interested:'đang quan tâm dịch vụ',waiting:'đang đợi phản hồi',no_budget:'chưa có budget',follow_up_needed:'cần follow up',closed_won:'đã chốt deal',closed_lost:'không quan tâm'};
 
   const lines=activeLeads.map(function(l){
@@ -365,20 +361,46 @@ async function generateReport(newLeads,updatedLeads){
     return '- '+l.name+tg+': '+note;
   });
 
-  const planLines=[];
-  if(interested.length>0) planLines.push('- Follow up leads đang quan tâm: '+interested.map(l=>l.name).join(', '));
-  if(fu.length>0) planLines.push('- Reach out lại leads chưa reply: '+fu.map(l=>l.name).join(', '));
-  if(waiting.length>0&&waiting.length<=5) planLines.push('- Check lại leads đang đợi: '+waiting.map(l=>l.name).join(', '));
-  else if(waiting.length>5) planLines.push('- Check lại '+waiting.length+' leads đang đợi');
-  planLines.push('- Tìm thêm lead mới từ Telegram');
-  planLines.push('- Collect lại date email gửi email remind');
-
   const NL='\n';
+  const accomplishedText=lines.length>0?lines.join(NL):'- Không có hoạt động mới';
+
+  // Dùng AI để tạo plan dựa trên leads thực tế hôm nay
+  let planText='';
+  const aiInfo=await getAIKey();
+  if(aiInfo){
+    try{
+      const leadsContext=activeLeads.map(function(l){
+        return l.name+(l.telegram_username?' (@'+l.telegram_username+')':'')+': '+l.status+' - '+(l.note||'');
+      }).join('\n');
+      const r=await axios.post('https://api.groq.com/openai/v1/chat/completions',{
+        model:'llama-3.3-70b-versatile',max_tokens:300,
+        messages:[
+          {role:'system',content:'Ban la sales analyst Coincu.com. Dua ra plan reachout cu the cho ngay mai dua tren tinh trang cac leads hom nay. Tra ve danh sach plan duoi dang bullet points bang tieng Viet, bat dau bang "- ". Moi plan phai cu the va thuc te, khong chung chung. Vi du: "- Follow up Degen Sing hoi them ve goi KOL package $500", "- Gui bao gia cho MrWardag sau khi het busy", "- Remind NewsPatrolling ve offer CMC listing". Cuoi them: "- Tim them lead moi tu Telegram", "- Collect lai date email gui email remind"'},
+          {role:'user',content:'Leads hom nay ('+d+'):\n'+leadsContext}
+        ]
+      },{headers:{'Authorization':'Bearer '+aiInfo.key,'Content-Type':'application/json'}});
+      planText=r.data.choices[0].message.content.trim();
+      log('✅ AI plan generated');
+    }catch(e){log('Plan AI error: '+e.message);}
+  }
+
+  // Fallback nếu AI lỗi
+  if(!planText){
+    const fu=leads.filter(l=>l.status==='follow_up_needed');
+    const interested=leads.filter(l=>l.status==='interested');
+    const planLines=[];
+    if(interested.length>0) planLines.push('- Follow up leads đang quan tâm: '+interested.map(l=>l.name).join(', '));
+    if(fu.length>0) planLines.push('- Reach out lại leads chưa reply: '+fu.map(l=>l.name).join(', '));
+    planLines.push('- Tìm thêm lead mới từ Telegram');
+    planLines.push('- Collect lại date email gửi email remind');
+    planText=planLines.join(NL);
+  }
+
   const content='E gửi Standup note ngày '+d+':'+NL+
     '1. What did you accomplish yesterday?'+NL+
-    (lines.length>0?lines.join(NL):'- Không có hoạt động mới')+NL+NL+
+    accomplishedText+NL+NL+
     '2. What are you planning to do today?'+NL+
-    planLines.join(NL);
+    planText;
 
   try{
     await db('post','reports',{id:'report_'+Date.now(),date:today.toISOString().slice(0,10),content:content,leads_scanned:leads.length,new_leads:newLeads,updated_leads:updatedLeads});
@@ -422,6 +444,7 @@ app.listen(PORT,'0.0.0.0',async()=>{
   const s=await getSession();log('🔐 Session: '+(s?'LOADED ✅':'NOT SET ❌'));
   const ai=await getAIKey();log('🤖 AI: '+(ai?ai.type+' READY ✅':'NOT SET ❌'));
 });
+
 
 
 
