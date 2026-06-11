@@ -72,12 +72,12 @@ export default function App() {
   const [newLead,setNewLead]=useState({name:'',website:'',sources:'',telegram_username:'',lark_email:'',research:'',note:'',status:'new'})
 
   const loadLeads=useCallback(async()=>{
-    try{const r=await fetch('/api/leads');const d=await r.json();if(Array.isArray(d))setLeads(d)}catch{}
-  },[])
+    try{const r=await fetch('/api/leads',{headers:{'x-auth-token':token}});const d=await r.json();if(Array.isArray(d))setLeads(d)}catch{}
+  },[token])
 
   const loadReports=useCallback(async()=>{
     try{
-      const r=await fetch('/api/reports');const d=await r.json();
+      const r=await fetch('/api/reports',{headers:{'x-auth-token':token}});const d=await r.json();
       if(Array.isArray(d)){setReports(d);if(d.length>0)setSelectedReport(prev=>prev||d[0])}
     }catch{}
   },[])
