@@ -370,15 +370,16 @@ async function generateReport(newLeads,updatedLeads){
   const today=new Date();
   const d=today.getDate()+'-'+(today.getMonth()+1);
 
-  // Chỉ lấy leads được scan HÔM NAY
   const todayStr=today.toISOString().slice(0,10);
-  const activeLeads=leads.filter(function(l){
+  // Chỉ lấy leads được scan HÔM NAY
+  const todayLeads=leads.filter(function(l){
     if(l.status==='new')return false;
-    // Chỉ hiện nếu last_scanned là hôm nay
     const scanned=(l.last_scanned||'').slice(0,10);
     const contacted=(l.last_contacted||'').slice(0,10);
     return scanned===todayStr||contacted===todayStr;
   });
+  const activeLeads=todayLeads;
+  log('📋 Today leads: '+activeLeads.length+' / Total: '+leads.length);
 
   const statusNote={interested:'đang quan tâm dịch vụ',waiting:'đang đợi phản hồi',no_budget:'chưa có budget',follow_up_needed:'cần follow up',closed_won:'đã chốt deal',closed_lost:'không quan tâm'};
 
@@ -481,6 +482,7 @@ app.listen(PORT,'0.0.0.0',async()=>{
   const s=await getSession();log('🔐 Session: '+(s?'LOADED ✅':'NOT SET ❌'));
   const ai=await getAIKey();log('🤖 AI: '+(ai?ai.type+' READY ✅':'NOT SET ❌'));
 });
+
 
 
 
