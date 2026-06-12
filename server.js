@@ -436,8 +436,12 @@ async function generateReport(newLeads,updatedLeads){
     planText;
 
   try{
-    await db('post','reports',{id:'report_'+Date.now(),date:today.toISOString().slice(0,10),content:content,leads_scanned:leads.length,new_leads:newLeads,updated_leads:updatedLeads});
-    log('✅ Report saved!');
+    const todayStr=today.toISOString().slice(0,10);
+    // Xóa report cũ cùng ngày nếu có
+    await db('delete','reports',null,'date=eq.'+todayStr);
+    // Tạo report mới
+    await db('post','reports',{id:'report_'+Date.now(),date:todayStr,content:content,leads_scanned:leads.length,new_leads:newLeads,updated_leads:updatedLeads});
+    log('✅ Report saved for '+todayStr);
     log(content.slice(0,200));
   }catch(e){log('❌ Report: '+e.message);}
 }
@@ -477,6 +481,7 @@ app.listen(PORT,'0.0.0.0',async()=>{
   const s=await getSession();log('🔐 Session: '+(s?'LOADED ✅':'NOT SET ❌'));
   const ai=await getAIKey();log('🤖 AI: '+(ai?ai.type+' READY ✅':'NOT SET ❌'));
 });
+
 
 
 
