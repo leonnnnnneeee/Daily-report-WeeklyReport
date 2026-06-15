@@ -70,6 +70,8 @@ export default function App() {
   const [selectedLeads,setSelectedLeads]=useState(new Set())
   const [bulkDeleting,setBulkDeleting]=useState(false)
   const [editingNote,setEditingNote]=useState(null) // {id, value}
+  const [editingReport,setEditingReport]=useState(false)
+  const [editReportContent,setEditReportContent]=useState('')
   const [newLead,setNewLead]=useState({name:'',website:'',sources:'',telegram_username:'',lark_email:'',research:'',note:'',status:'new'})
 
   const loadLeads=useCallback(async()=>{
@@ -118,6 +120,12 @@ export default function App() {
     await fetch('/api/reports/'+id,{method:'DELETE',headers:{'x-auth-token':token}})
     await loadReports()
     setSelectedReport(null)
+  }
+
+  async function saveReport(id,content){
+    await fetch('/api/reports/'+id,{method:'PATCH',headers:{'Content-Type':'application/json','x-auth-token':token},body:JSON.stringify({content})})
+    setEditingReport(false)
+    await loadReports()
   }
 
   async function saveLeadNote(id,note){
@@ -362,12 +370,24 @@ export default function App() {
                       <div style={{display:'flex',gap:8}}>
                         <button onClick={()=>{navigator.clipboard.writeText(selectedReport.content);setCopied(true);setTimeout(()=>setCopied(false),2000)}}
                           style={{...B.s,fontSize:12,padding:'6px 14px'}}>{copied?'✅ Copied':'📋 Copy'}</button>
+                        <button onClick={()=>{{setEditReportContent(selectedReport.content);setEditingReport(true);}}} style={{...B.s,fontSize:12,padding:'6px 14px'}}>✏️ Edit</button>
                         <button onClick={()=>deleteReport(selectedReport.id)} style={B.r}>🗑 Xóa</button>
                       </div>
                     </div>
-                    <div style={{background:'#F9FAFB',borderRadius:8,padding:16,fontFamily:'monospace',fontSize:13,whiteSpace:'pre-wrap',lineHeight:1.8,color:'#111',maxHeight:500,overflowY:'auto'}}>
-                      {selectedReport.content}
-                    </div>
+                    {editingReport ? (
+                      <div>
+                        <textarea value={editReportContent} onChange={e=>setEditReportContent(e.target.value)}
+                          style={{width:'100%',minHeight:300,padding:12,fontFamily:'monospace',fontSize:13,lineHeight:1.8,border:'1px solid #7C3AED',borderRadius:8,resize:'vertical',boxSizing:'border-box'}}/>
+                        <div style={{display:'flex',gap:8,marginTop:8}}>
+                          <button onClick={()=>saveReport(selectedReport.id,editReportContent)} style={{background:'#7C3AED',color:'#fff',border:'none',padding:'8px 20px',borderRadius:8,fontSize:13,fontWeight:600,cursor:'pointer'}}>💾 Lưu</button>
+                          <button onClick={()=>setEditingReport(false)} style={{background:'#fff',color:'#374151',border:'1px solid #D1D5DB',padding:'8px 16px',borderRadius:8,fontSize:13,cursor:'pointer'}}>Hủy</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{background:'#F9FAFB',borderRadius:8,padding:16,fontFamily:'monospace',fontSize:13,whiteSpace:'pre-wrap',lineHeight:1.8,color:'#111',maxHeight:500,overflowY:'auto'}}>
+                        {selectedReport.content}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
