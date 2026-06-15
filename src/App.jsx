@@ -107,6 +107,35 @@ export default function App() {
     loadReports()
   }
 
+  async function deleteReport(id){
+    if(!confirm('Delete this report?'))return
+    await fetch('/api/reports/'+id,{method:'DELETE',headers:{'x-auth-token':token}})
+    await loadReports(); setSelectedReport(null)
+  }
+
+  async function deleteLead(id){
+    if(!confirm('Delete this lead?'))return
+    await fetch('/api/leads/'+id,{method:'DELETE',headers:{'x-auth-token':token}});await loadLeads()
+  }
+
+  function toggleLead(id){
+    setSelectedLeads(prev=>{const n=new Set(prev);n.has(id)?n.delete(id):n.add(id);return n})
+  }
+
+  function toggleAllLeads(ls){
+    if(selectedLeads.size===ls.length) setSelectedLeads(new Set())
+    else setSelectedLeads(new Set(ls.map(l=>l.id)))
+  }
+
+  async function bulkDeleteLeads(){
+    if(!selectedLeads.size)return
+    if(!confirm('Delete '+selectedLeads.size+' leads?'))return
+    setBulkDeleting(true)
+    await Promise.all([...selectedLeads].map(id=>fetch('/api/leads/'+id,{method:'DELETE',headers:{'x-auth-token':token}})))
+    setSelectedLeads(new Set())
+    await loadLeads(); setBulkDeleting(false)
+  }
+
   if(!token) return <Login onLogin={t=>{setToken(t);localStorage.setItem('auth_token',t);}} />
 
   return (
@@ -227,7 +256,10 @@ export default function App() {
                       <select value={l.status} onChange={e=>updateStatus(l.id, e.target.value)} style={{fontSize:12, padding:'6px 10px'}}>
                         {Object.entries(STATUS).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}
                       </select>
-                      <div style={{fontSize:11, color:'var(--text-secondary)'}}>@{l.telegram_username || 'n/a'}</div>
+                      <div style={{display:'flex', gap:10, alignItems:'center'}}>
+                        <div style={{fontSize:11, color:'var(--text-secondary)'}}>@{l.telegram_username || 'n/a'}</div>
+                        <button onClick={()=>deleteLead(l.id)} style={{background:'none', border:'none', cursor:'pointer', color:'rgba(239, 68, 68, 0.5)', fontSize:14}}>🗑</button>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -298,23 +330,51 @@ export default function App() {
                }} className="btn-primary">📥 Download Excel Report</button>
             </div>
 
-            <div className="section-card" style={{overflowX:'auto'}}>
+            {selectedLeads.size > 0 && (
+              <div style={{background:'rgba(239, 68, 68, 0.1)', border:'1px solid rgba(239, 68, 68, 0.2)', padding:'12px 24px', borderRadius:12, marginBottom:16, display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                <span style={{fontSize:14, fontWeight:700, color:'#ef4444'}}>Selected {selectedLeads.size} leads</span>
+                <div style={{display:'flex', gap:8}}>
+                  <button onClick={()=>setSelectedLeads(new Set())} className="btn-primary" style={{background:'rgba(255,255,255,0.05)', color:'#fff'}}>Clear</button>
+                  <button onClick={bulkDeleteLeads} disabled={bulkDeleting} className="btn-primary" style={{background:'#ef4444'}}>{bulkDeleting ? 'Deleting...' : 'Delete Selected'}</button>
+                </div>
+              </div>
+            )}
+
+            <div className="section-card" style={{overflowX:'auto', padding:0}}>
               <table style={{width:'100%', borderCollapse:'collapse', textAlign:'left'}}>
                 <thead>
                   <tr style={{background:'rgba(255,255,255,0.02)', borderBottom:'1px solid var(--border)'}}>
+                    <th style={{padding:'16px 24px', width:40}}>
+                      <input type="checkbox" checked={selectedLeads.size===leads.length && leads.length > 0} onChange={()=>toggleAllLeads(leads)}/>
+                    </th>
                     <th style={{padding:'16px 24px', fontSize:12, color:'var(--text-secondary)'}}>NAME</th>
                     <th style={{padding:'16px 24px', fontSize:12, color:'var(--text-secondary)'}}>SOURCE</th>
                     <th style={{padding:'16px 24px', fontSize:12, color:'var(--text-secondary)'}}>STATUS</th>
                     <th style={{padding:'16px 24px', fontSize:12, color:'var(--text-secondary)'}}>LATEST NOTE</th>
+                    <th style={{padding:'16px 24px', fontSize:12, color:'var(--text-secondary)'}}></th>
                   </tr>
                 </thead>
                 <tbody>
                   {leads.map(l => (
-                    <tr key={l.id} style={{borderBottom:'1px solid var(--border)'}}>
+                    <tr key={l.id} style={{borderBottom:'1px solid var(--border)', background:selectedLeads.has(l.id)?'rgba(139, 92, 246, 0.05)':'transparent'}}>
+                      <td style={{padding:'16px 24px'}}>
+                        <input type="checkbox" checked={selectedLeads.has(l.id)} onChange={()=>toggleLead(l.id)}/>
+                      </td>
                       <td style={{padding:'16px 24px', fontWeight:700}}>{l.name}</td>
                       <td style={{padding:'16px 24px', color:'var(--text-secondary)', fontSize:13}}>{l.sources}</td>
                       <td style={{padding:'16px 24px'}}><Badge status={l.status}/></td>
-                      <td style={{padding:'16px 24px', color:'var(--text-secondary)', fontSize:13}}>{l.note || '---'}</td>
+                      <td style={{padding:'16px 24px'}}>
+                        <div style={{fontSize:12, color:'#d1d1d6', cursor:'pointer'}} onClick={()=>setEditingNote({id:l.id, value:l.note||''})}>
+                          {editingNote?.id===l.id ? (
+                            <input value={editingNote.value} onChange={e=>setEditingNote({...editingNote, value:e.target.value})}
+                              onKeyDown={e=>{if(e.key==='Enter')saveLeadNote(l.id, editingNote.value); if(e.key==='Escape')setEditingNote(null);}}
+                              style={{fontSize:12, padding:'4px 8px', border:'1px solid var(--accent)', outline:'none', background:'#1c1c1e', color:'#fff'}} autoFocus/>
+                          ) : (l.note || '---')}
+                        </div>
+                      </td>
+                      <td style={{padding:'16px 24px', textAlign:'right'}}>
+                        <button onClick={()=>deleteLead(l.id)} style={{background:'none', border:'none', cursor:'pointer', color:'rgba(239, 68, 68, 0.5)', fontSize:16}}>🗑</button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
