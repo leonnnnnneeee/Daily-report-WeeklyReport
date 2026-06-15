@@ -69,6 +69,7 @@ export default function App() {
   const [copied,setCopied]=useState(false)
   const [selectedLeads,setSelectedLeads]=useState(new Set())
   const [bulkDeleting,setBulkDeleting]=useState(false)
+  const [editingNote,setEditingNote]=useState(null) // {id, value}
   const [newLead,setNewLead]=useState({name:'',website:'',sources:'',telegram_username:'',lark_email:'',research:'',note:'',status:'new'})
 
   const loadLeads=useCallback(async()=>{
@@ -117,6 +118,12 @@ export default function App() {
     await fetch('/api/reports/'+id,{method:'DELETE',headers:{'x-auth-token':token}})
     await loadReports()
     setSelectedReport(null)
+  }
+
+  async function saveLeadNote(id,note){
+    await fetch('/api/leads/'+id,{method:'PATCH',headers:{'Content-Type':'application/json','x-auth-token':token},body:JSON.stringify({note})})
+    setEditingNote(null)
+    await loadLeads()
   }
 
   async function bulkDeleteLeads(){
@@ -440,7 +447,22 @@ export default function App() {
                           <td style={{border:'1px solid #E5E7EB',padding:'6px 8px'}}>{l.sources}</td>
                           <td style={{border:'1px solid #E5E7EB',padding:'6px 8px'}}>@{l.telegram_username}</td>
                           <td style={{border:'1px solid #E5E7EB',padding:'6px 8px',maxWidth:200}}>{l.research?.slice(0,80)}</td>
-                          <td style={{border:'1px solid #E5E7EB',padding:'6px 8px',maxWidth:150}}>{l.note?.slice(0,60)}</td>
+                          <td style={{border:'1px solid #E5E7EB',padding:'4px 6px',maxWidth:200}}>
+                            {editingNote?.id===l.id ? (
+                              <div style={{display:'flex',gap:4}}>
+                                <input value={editingNote.value} onChange={e=>setEditingNote({...editingNote,value:e.target.value})}
+                                  onKeyDown={e=>{if(e.key==='Enter')saveLeadNote(l.id,editingNote.value);if(e.key==='Escape')setEditingNote(null);}}
+                                  style={{fontSize:11,padding:'2px 6px',border:'1px solid #7C3AED',borderRadius:4,flex:1,width:'100%'}} autoFocus/>
+                                <button onClick={()=>saveLeadNote(l.id,editingNote.value)} style={{fontSize:10,padding:'2px 6px',background:'#7C3AED',color:'#fff',border:'none',borderRadius:4,cursor:'pointer'}}>✓</button>
+                                <button onClick={()=>setEditingNote(null)} style={{fontSize:10,padding:'2px 6px',background:'#fff',color:'#6B7280',border:'1px solid #D1D5DB',borderRadius:4,cursor:'pointer'}}>✕</button>
+                              </div>
+                            ) : (
+                              <div style={{display:'flex',alignItems:'center',gap:4,cursor:'pointer'}} onClick={()=>setEditingNote({id:l.id,value:l.note||''})}>
+                                <span style={{fontSize:11,flex:1}}>{l.note?.slice(0,60)||<em style={{color:'#9CA3AF'}}>click để thêm</em>}</span>
+                                <span style={{fontSize:10,color:'#9CA3AF'}}>✏️</span>
+                              </div>
+                            )}
+                          </td>
                           <td style={{border:'1px solid #E5E7EB',padding:'6px 8px'}}><Badge status={l.status}/></td>
                           <td style={{border:'1px solid #E5E7EB',padding:'4px 6px',textAlign:'center'}}>
                             <button onClick={()=>deleteLead(l.id)} style={{background:'#FEF2F2',color:'#DC2626',border:'1px solid #FCA5A5',borderRadius:4,padding:'2px 8px',fontSize:11,cursor:'pointer'}}>🗑</button>
