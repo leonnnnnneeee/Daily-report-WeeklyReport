@@ -77,6 +77,10 @@ export default function MessagesTab({ token, initialChat }) {
     if (!text.trim() || !selectedChat) return
     const currentText = text
     setText('')
+    
+    // Ngăn mất focus khi click nút Send (nút bị disabled sẽ làm rơi focus)
+    if (inputRef.current) inputRef.current.focus()
+    
     setSending(true)
     try {
       const r = await fetch('/api/chat/send', {
