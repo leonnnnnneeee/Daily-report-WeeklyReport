@@ -257,6 +257,7 @@ export default function App() {
                   <div style={{display:'flex', gap:10}}>
                     <button onClick={()=>{navigator.clipboard.writeText(selectedReport.content); setCopied(true); setTimeout(()=>setCopied(false),2000)}} className="btn-primary" style={{background:'rgba(255,255,255,0.05)', color:'#fff'}}>{copied?'Copied ✓':'Copy'}</button>
                     <button onClick={()=>{setEditReportContent(selectedReport.content); setEditingReport(true);}} className="btn-primary" style={{background:'rgba(255,255,255,0.05)', color:'#fff'}}>Edit</button>
+                    <button onClick={()=>deleteReport(selectedReport.id)} className="btn-primary" style={{background:'rgba(239, 68, 68, 0.1)', color:'var(--danger)', border:'1px solid rgba(239, 68, 68, 0.2)'}}>Delete</button>
                   </div>
                 </div>
 
