@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import ScanTab from './ScanTab'
 import Login from './Login'
+import MessagesTab from './MessagesTab'
 
 const STATUS = {
   new:{label:'New',color:'#94a3b8',bg:'rgba(148, 163, 184, 0.1)'},
