@@ -478,38 +478,6 @@ function today_str(){return new Date().toISOString().slice(0,10);}
 // ── CRON ───────────────────────────────────────────
 cron.schedule('40 9 * * 1-5',()=>{log('[CRON] 9:40AM daily scan (Mon-Fri)');runScan().catch(e=>log('❌ '+e.message));},{timezone:'Asia/Ho_Chi_Minh'});
 
-app.get('*',(req,res)=>res.sendFile(path.join(__dirname,'dist','index.html')));
-
-app.listen(PORT,'0.0.0.0',async()=>{
-  log('✅ Ready on port '+PORT);
-  const l=await db('get','leads','','order=created_at.asc');log('📋 Leads: '+l.length);
-  const s=await getSession();log('🔐 Session: '+(s?'LOADED ✅':'NOT SET ❌'));
-  const ai=await getAIKey();log('🤖 AI: '+(ai?ai.type+' READY ✅':'NOT SET ❌'));
-});
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 // ── CHAT API ──────────────────────────────────────
 app.get('/api/chat/list', requireAuth, async (req, res) => {
   const session = await getSession();
@@ -581,4 +549,13 @@ app.get('/api/chat/resolve/:username', requireAuth, async (req, res) => {
     await client.disconnect();
     res.json(chat);
   } catch (e) { log('Resolve chat error: ' + e.message); res.status(404).json({ error: 'User not found' }); }
+});
+
+app.get('*',(req,res)=>res.sendFile(path.join(__dirname,'dist','index.html')));
+
+app.listen(PORT,async()=>{
+  log('✅ Ready on port '+PORT);
+  const l=await db('get','leads','','order=created_at.asc');log('📋 Leads: '+l.length);
+  const s=await getSession();log('🔐 Session: '+(s?'LOADED ✅':'NOT SET ❌'));
+  const ai=await getAIKey();log('🤖 AI: '+(ai?ai.type+' READY ✅':'NOT SET ❌'));
 });
