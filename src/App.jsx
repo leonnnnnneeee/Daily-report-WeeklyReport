@@ -3,31 +3,32 @@ import ScanTab from './ScanTab'
 import Login from './Login'
 
 const STATUS = {
-  new:{label:'New',color:'#6B7280',bg:'#F3F4F6'},
-  interested:{label:'Interested',color:'#059669',bg:'#D1FAE5'},
-  waiting:{label:'Waiting',color:'#D97706',bg:'#FEF3C7'},
-  no_budget:{label:'No Budget',color:'#DC2626',bg:'#FEE2E2'},
-  follow_up_needed:{label:'Follow Up',color:'#7C3AED',bg:'#EDE9FE'},
-  closed_won:{label:'Won',color:'#065F46',bg:'#A7F3D0'},
-  closed_lost:{label:'Lost',color:'#991B1B',bg:'#FECACA'},
+  new:{label:'New',color:'#64748b',bg:'#f1f5f9'},
+  interested:{label:'Interested',color:'#059669',bg:'#dcfce7'},
+  waiting:{label:'Waiting',color:'#d97706',bg:'#fef3c7'},
+  no_budget:{label:'No Budget',color:'#dc2626',bg:'#fee2e2'},
+  follow_up_needed:{label:'Follow Up',color:'#7c3aed',bg:'#ede9fe'},
+  closed_won:{label:'Won',color:'#15803d',bg:'#bbf7d0'},
+  closed_lost:{label:'Lost',color:'#b91c1c',bg:'#fecaca'},
 }
+
 const B = {
-  p:{background:'#111',color:'#fff',border:'none',padding:'9px 20px',borderRadius:8,fontSize:13,fontWeight:600,cursor:'pointer'},
-  s:{background:'#fff',color:'#374151',border:'1px solid #D1D5DB',padding:'8px 16px',borderRadius:8,fontSize:13,cursor:'pointer'},
-  g:{background:'transparent',color:'#6B7280',border:'none',padding:'6px 14px',borderRadius:7,fontSize:13,fontWeight:500,cursor:'pointer'},
-  r:{background:'#FEF2F2',color:'#DC2626',border:'1px solid #FCA5A5',padding:'5px 12px',borderRadius:6,fontSize:12,cursor:'pointer'},
+  p: { background: '#6366f1', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer', boxShadow: '0 4px 6px -1px rgba(99, 102, 241, 0.2)' },
+  s: { background: '#fff', color: '#1e293b', border: '1px solid #e2e8f0', padding: '10px 18px', borderRadius: 10, fontSize: 13, fontWeight: 500, cursor: 'pointer' },
+  r: { background: '#ef4444', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer' },
+  g: { background: 'transparent', color: '#64748b', border: 'none', padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: 'pointer' },
 }
-const inp = {width:'100%',padding:'8px 12px',border:'1px solid #D1D5DB',borderRadius:8,fontSize:13,background:'#F9FAFB'}
 
 function Badge({status}) {
-  const s=STATUS[status]||STATUS.new
-  return <span style={{background:s.bg,color:s.color,padding:'2px 10px',borderRadius:99,fontSize:11,fontWeight:600,whiteSpace:'nowrap'}}>{s.label}</span>
+  const s = STATUS[status] || STATUS.new
+  return <span style={{background:s.bg, color:s.color, padding:'4px 12px', borderRadius:99, fontSize:11, fontWeight:700, letterSpacing:'0.02em', textTransform:'uppercase'}}>{s.label}</span>
 }
-function Stat({label,value,color}) {
+
+function Stat({label, value, color}) {
   return (
-    <div style={{background:'#fff',border:'1px solid #E5E7EB',borderRadius:12,padding:'18px 20px',flex:1,minWidth:100}}>
-      <div style={{fontSize:12,color:'#6B7280',marginBottom:4}}>{label}</div>
-      <div style={{fontSize:26,fontWeight:700,color:color||'#111'}}>{value}</div>
+    <div className="stat-card" style={{ flex: 1, minWidth: 140 }}>
+      <div style={{fontSize:12, fontWeight:600, color:'#64748b', textTransform:'uppercase', letterSpacing:'0.05em'}}>{label}</div>
+      <div style={{fontSize:28, fontWeight:800, color:color || '#1e293b'}}>{value}</div>
     </div>
   )
 }
@@ -36,27 +37,26 @@ function NoteEdit({lead, onSave}){
   const [editing,setEditing]=useState(false)
   const [val,setVal]=useState(lead.note||'')
   if(!editing) return (
-    <div style={{fontSize:12,marginBottom:6,display:'flex',alignItems:'center',gap:6}}>
-      <span style={{background:'#F9FAFB',padding:'4px 10px',borderRadius:6,flex:1,color:val?'#374151':'#9CA3AF'}}>
-        📝 {val||'Chưa có note — click để thêm'}
+    <div style={{fontSize:13, marginBottom:10, display:'flex', alignItems:'center', gap:8}}>
+      <span onClick={()=>setEditing(true)} style={{background:'#f8fafc', padding:'8px 14px', borderRadius:10, flex:1, color:val?'#334155':'#94a3b8', border:'1px solid #f1f5f9', cursor:'pointer'}}>
+        <span style={{marginRight:6}}>📝</span> {val || 'Add an internal note...'}
       </span>
-      <button onClick={()=>setEditing(true)} style={{fontSize:11,padding:'3px 8px',border:'1px solid #D1D5DB',borderRadius:5,background:'#fff',cursor:'pointer',color:'#6B7280',flexShrink:0}}>✏️</button>
     </div>
   )
   return (
-    <div style={{marginBottom:6,display:'flex',gap:6}}>
+    <div style={{marginBottom:10, display:'flex', gap:8}}>
       <input value={val} onChange={e=>setVal(e.target.value)}
         onKeyDown={e=>{if(e.key==='Enter'){onSave(lead.id,val);setEditing(false);}if(e.key==='Escape')setEditing(false);}}
-        placeholder="Ghi tình trạng outreach... (Enter để lưu)"
-        style={{fontSize:12,padding:'4px 10px',border:'1px solid #7C3AED',borderRadius:6,flex:1,background:'#fff'}}
+        placeholder="Type a note and press Enter..."
+        style={{fontSize:13, padding:'8px 14px', border:'1px solid #6366f1', borderRadius:10, flex:1, background:'#fff'}}
         autoFocus/>
-      <button onClick={()=>{onSave(lead.id,val);setEditing(false);}} style={{fontSize:11,padding:'4px 10px',border:'none',borderRadius:6,background:'#7C3AED',color:'#fff',cursor:'pointer',flexShrink:0}}>Lưu</button>
-      <button onClick={()=>setEditing(false)} style={{fontSize:11,padding:'4px 8px',border:'1px solid #D1D5DB',borderRadius:6,background:'#fff',cursor:'pointer',color:'#6B7280',flexShrink:0}}>✕</button>
+      <button onClick={()=>{onSave(lead.id,val);setEditing(false);}} style={{...B.p, padding:'8px 16px'}}>Save</button>
+      <button onClick={()=>setEditing(false)} style={B.s}>Cancel</button>
     </div>
   )
 }
 
-const TABS = ['Dashboard','Leads','Daily Report','Weekly Report','Auto Scan','Add Lead']
+const TABS = ['Dashboard','Leads','Reports','Scanning','Settings']
 
 export default function App() {
   const [token,setToken]=useState(()=>localStorage.getItem('auth_token')||'')
@@ -69,7 +69,7 @@ export default function App() {
   const [copied,setCopied]=useState(false)
   const [selectedLeads,setSelectedLeads]=useState(new Set())
   const [bulkDeleting,setBulkDeleting]=useState(false)
-  const [editingNote,setEditingNote]=useState(null) // {id, value}
+  const [editingNote,setEditingNote]=useState(null)
   const [editingReport,setEditingReport]=useState(false)
   const [editReportContent,setEditReportContent]=useState('')
   const [newLead,setNewLead]=useState({name:'',website:'',sources:'',telegram_username:'',lark_email:'',research:'',note:'',status:'new'})
@@ -85,72 +85,29 @@ export default function App() {
     }catch{}
   },[])
 
-  useEffect(()=>{loadLeads();loadReports()},[])
+  useEffect(()=>{if(token){loadLeads();loadReports();}},[token, loadLeads, loadReports])
   useEffect(()=>{
-    const t=setInterval(()=>{loadLeads();loadReports()},10000)
+    if(!token) return
+    const t=setInterval(()=>{loadLeads();loadReports()},15000)
     return()=>clearInterval(t)
-  },[])
+  },[token, loadLeads, loadReports])
 
   const counts=Object.fromEntries(Object.keys(STATUS).map(s=>[s,leads.filter(l=>l.status===s).length]))
   const filtered=filterStatus==='all'?leads:leads.filter(l=>l.status===filterStatus)
   const followUps=leads.filter(l=>l.status==='follow_up_needed'||l.status==='waiting')
 
   async function addLead(){
-    if(!newLead.telegram_username.trim()&&!newLead.lark_email.trim())return alert('Nhập Telegram username hoặc Lark email!')
+    if(!newLead.telegram_username.trim()&&!newLead.lark_email.trim())return alert('Enter Telegram or Email!')
     setAdding(true)
     const leadData={...newLead,name:newLead.telegram_username||newLead.lark_email||'Unknown'}
     const r=await fetch('/api/leads',{method:'POST',headers:{'Content-Type':'application/json','x-auth-token':token},body:JSON.stringify(leadData)})
     const d=await r.json()
     setNewLead({name:'',website:'',sources:'',telegram_username:'',lark_email:'',research:'',note:'',status:'new'})
     await loadLeads();setAdding(false);setTab('Leads')
-    // Tự động scan lead mới nếu có telegram_username
     if(d.ok && d.lead?.id && newLead.telegram_username){
       await fetch('/api/scan/lead/'+d.lead.id, {method:'POST'})
-      setTimeout(loadLeads, 5000) // reload sau 5s để thấy status mới
+      setTimeout(loadLeads, 5000)
     }
-  }
-
-  async function deleteLead(id){
-    if(!confirm('Xóa lead này?'))return
-    await fetch('/api/leads/'+id,{method:'DELETE',headers:{'x-auth-token':token}});await loadLeads()
-  }
-
-  async function deleteReport(id){
-    if(!confirm('Xóa report này?'))return
-    await fetch('/api/reports/'+id,{method:'DELETE',headers:{'x-auth-token':token}})
-    await loadReports()
-    setSelectedReport(null)
-  }
-
-  async function saveReport(id,content){
-    await fetch('/api/reports/'+id,{method:'PATCH',headers:{'Content-Type':'application/json','x-auth-token':token},body:JSON.stringify({content})})
-    setEditingReport(false)
-    await loadReports()
-  }
-
-  async function saveLeadNote(id,note){
-    await fetch('/api/leads/'+id,{method:'PATCH',headers:{'Content-Type':'application/json','x-auth-token':token},body:JSON.stringify({note})})
-    setEditingNote(null)
-    await loadLeads()
-  }
-
-  async function bulkDeleteLeads(){
-    if(!selectedLeads.size)return
-    if(!confirm('Xóa '+selectedLeads.size+' leads đã chọn?'))return
-    setBulkDeleting(true)
-    await Promise.all([...selectedLeads].map(id=>fetch('/api/leads/'+id,{method:'DELETE',headers:{'x-auth-token':token}})))
-    setSelectedLeads(new Set())
-    await loadLeads()
-    setBulkDeleting(false)
-  }
-
-  function toggleLead(id){
-    setSelectedLeads(prev=>{const n=new Set(prev);n.has(id)?n.delete(id):n.add(id);return n})
-  }
-
-  function toggleAllLeads(leads){
-    if(selectedLeads.size===leads.length) setSelectedLeads(new Set())
-    else setSelectedLeads(new Set(leads.map(l=>l.id)))
   }
 
   async function updateStatus(id,status){
@@ -158,367 +115,251 @@ export default function App() {
     await loadLeads()
   }
 
+  async function deleteLead(id){
+    if(!confirm('Delete this lead?'))return
+    await fetch('/api/leads/'+id,{method:'DELETE',headers:{'x-auth-token':token}});await loadLeads()
+  }
+
   if(!token) return <Login onLogin={t=>{setToken(t);localStorage.setItem('auth_token',t);}} />
 
   return (
-    <div style={{minHeight:'100vh',background:'#F9FAFB',fontFamily:"'DM Sans','Helvetica Neue',sans-serif"}}>
-      <div style={{background:'#111',color:'#fff',padding:'0 24px',height:56,display:'flex',alignItems:'center',justifyContent:'space-between',position:'sticky',top:0,zIndex:10}}>
-        <div style={{display:'flex',alignItems:'center',gap:8}}>
-          <div style={{width:30,height:30,background:'#fff',borderRadius:7,display:'flex',alignItems:'center',justifyContent:'center',fontSize:16}}>⚡</div>
-          <span style={{fontWeight:700,fontSize:15}}>Coincu Sales</span>
+    <div style={{minHeight:'100vh'}}>
+      {/* Sidebar/Header Navigation */}
+      <div className="glass-header" style={{color:'#fff', padding:'0 32px', height:70, display:'flex', alignItems:'center', justifyContent:'space-between', position:'sticky', top:0, zIndex:100}}>
+        <div style={{display:'flex', alignItems:'center', gap:12}}>
+          <div style={{width:36, height:36, background:'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)', borderRadius:10, display:'flex', alignItems:'center', justifyContent:'center', fontSize:20, fontWeight:800}}>C</div>
+          <span style={{fontWeight:800, fontSize:18, letterSpacing:'-0.02em'}}>COINCU <span style={{fontWeight:400, color:'#94a3b8'}}>SALES</span></span>
         </div>
-        <div style={{display:'flex',gap:2}}>
+        <div style={{display:'flex', gap:4}}>
           {TABS.map(t=>(
-            <button key={t} onClick={()=>setTab(t)} style={{...B.g,background:tab===t?'rgba(255,255,255,0.15)':'transparent',color:tab===t?'#fff':'#999'}}>
-              {t}{t==='Daily Report'&&reports.length>0?<span style={{background:'#7C3AED',fontSize:10,padding:'1px 5px',borderRadius:99,marginLeft:4}}>{reports.length}</span>:''}
+            <button key={t} onClick={()=>setTab(t)} className={`tab-btn ${tab===t?'active':''}`}>
+              {t}
             </button>
           ))}
         </div>
-        <div style={{display:'flex',gap:12,alignItems:'center'}}>
-          <div style={{fontSize:12,color:'#555'}}>auto-refresh 10s</div>
-          <button onClick={()=>{localStorage.removeItem('auth_token');setToken('');}} style={{fontSize:11,padding:'4px 10px',background:'transparent',border:'1px solid #444',borderRadius:5,color:'#666',cursor:'pointer'}}>Đăng xuất</button>
+        <div style={{display:'flex', gap:16, alignItems:'center'}}>
+          <div style={{width:8, height:8, borderRadius:'50%', background:'#22c55e', boxShadow:'0 0 10px #22c55e'}}></div>
+          <button onClick={()=>{localStorage.removeItem('auth_token');setToken('');}} style={{background:'transparent', border:'1px solid rgba(255,255,255,0.2)', padding:'6px 14px', borderRadius:8, color:'#94a3b8', fontSize:12, cursor:'pointer'}}>Sign Out</button>
         </div>
       </div>
 
-      <div style={{padding:24,maxWidth:1080,margin:'0 auto'}}>
+      <div style={{padding:'40px 32px', maxWidth:1200, margin:'0 auto'}}>
 
         {/* DASHBOARD */}
         {tab==='Dashboard'&&(
-          <div>
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
-              <h2 style={{fontSize:20,fontWeight:700}}>Dashboard</h2>
-              <span style={{fontSize:12,color:'#9CA3AF'}}>{leads.length} leads • {reports.length} reports</span>
-            </div>
-            <div style={{display:'flex',gap:12,marginBottom:22,flexWrap:'wrap'}}>
-              <Stat label="Total" value={leads.length}/>
+          <div className="fade-in">
+            <header style={{marginBottom:32}}>
+              <h1 style={{fontSize:32, fontWeight:800, color:'#1e293b', marginBottom:8}}>Sales Overview</h1>
+              <p style={{color:'#64748b', fontSize:15}}>Track your leads performance and latest updates across all channels.</p>
+            </header>
+
+            <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(180px, 1fr))', gap:20, marginBottom:40}}>
+              <Stat label="Total Leads" value={leads.length}/>
               <Stat label="Interested" value={counts.interested||0} color="#059669"/>
-              <Stat label="Waiting" value={counts.waiting||0} color="#D97706"/>
-              <Stat label="No Budget" value={counts.no_budget||0} color="#DC2626"/>
-              <Stat label="Follow Up" value={counts.follow_up_needed||0} color="#7C3AED"/>
-              <Stat label="Won" value={counts.closed_won||0} color="#065F46"/>
+              <Stat label="Waiting" value={counts.waiting||0} color="#d97706"/>
+              <Stat label="Follow Up" value={counts.follow_up_needed||0} color="#7c3aed"/>
+              <Stat label="Won" value={counts.closed_won||0} color="#15803d"/>
             </div>
 
-            {reports.length>0&&(
-              <div style={{background:'#EDE9FE',border:'1px solid #C4B5FD',borderRadius:12,padding:16,marginBottom:20,cursor:'pointer'}} onClick={()=>setTab('Daily Report')}>
-                <div style={{display:'flex',justifyContent:'space-between',marginBottom:6}}>
-                  <span style={{fontWeight:600,color:'#5B21B6',fontSize:14}}>📊 Latest Report — {reports[0].date}</span>
-                  <span style={{fontSize:12,color:'#7C3AED'}}>{reports[0].new_leads} new • {reports[0].updated_leads} updated</span>
+            <div style={{display:'grid', gridTemplateColumns:'1.6fr 1fr', gap:32}}>
+              <section className="card" style={{padding:0, overflow:'hidden'}}>
+                <div style={{padding:'20px 24px', borderBottom:'1px solid #f1f5f9', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                  <h3 style={{fontSize:16, fontWeight:700}}>Recent Activity</h3>
+                  <button onClick={()=>setTab('Leads')} style={{fontSize:13, color:'#6366f1', fontWeight:600, background:'none', border:'none', cursor:'pointer'}}>View all</button>
                 </div>
-                <div style={{fontSize:12,color:'#374151',whiteSpace:'pre-wrap',maxHeight:60,overflow:'hidden'}}>{reports[0].content.slice(0,200)}...</div>
-                <div style={{fontSize:12,color:'#7C3AED',marginTop:6}}>Xem full →</div>
-              </div>
-            )}
-
-            {followUps.length>0&&(
-              <div style={{background:'#FFF7ED',border:'1px solid #FED7AA',borderRadius:12,padding:16,marginBottom:20}}>
-                <div style={{fontWeight:600,color:'#92400E',marginBottom:10,fontSize:14}}>🔁 Follow up ({followUps.length})</div>
-                {followUps.map(l=>(
-                  <div key={l.id} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'7px 0',borderBottom:'1px solid #FED7AA'}}>
-                    <div>
-                      <span style={{fontWeight:600,fontSize:13}}>{l.name}</span>
-                      <span style={{color:'#6B7280',fontSize:12,marginLeft:10}}>{l.note?.slice(0,80)}</span>
-                    </div>
-                    <div style={{display:'flex',gap:8,alignItems:'center'}}>
+                <div style={{padding:'8px 0'}}>
+                  {leads.slice(0, 6).map(l=>(
+                    <div key={l.id} style={{display:'flex', alignItems:'center', gap:16, padding:'14px 24px', borderBottom:'1px solid #f8fafc'}}>
+                      <div style={{width:40, height:40, background:'#f1f5f9', borderRadius:12, display:'flex', alignItems:'center', justifyContent:'center', fontWeight:800, color:'#64748b', fontSize:14}}>{l.name?.[0]||'?'}</div>
+                      <div style={{flex:1}}>
+                        <div style={{fontWeight:700, fontSize:14, color:'#1e293b'}}>{l.name}</div>
+                        <div style={{fontSize:12, color:'#64748b', marginTop:2}}>Last contact: {l.last_contacted}</div>
+                      </div>
                       <Badge status={l.status}/>
-                      <span style={{fontSize:11,color:'#9CA3AF'}}>{l.telegram_username?'📱':'📧'}</span>
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              <aside style={{display:'flex', flexDirection:'column', gap:24}}>
+                {reports.length > 0 && (
+                  <div className="card" style={{padding:24, background:'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)', color:'#fff', border:'none'}}>
+                    <div style={{display:'flex', justifyContent:'space-between', marginBottom:16}}>
+                      <span style={{fontSize:12, fontWeight:700, color:'#6366f1', textTransform:'uppercase', letterSpacing:'0.05em'}}>Latest Analysis</span>
+                      <span style={{fontSize:12, color:'#94a3b8'}}>{reports[0].date}</span>
+                    </div>
+                    <h4 style={{fontSize:18, fontWeight:700, marginBottom:12}}>Daily Intelligence Report</h4>
+                    <p style={{fontSize:14, color:'#94a3b8', lineHeight:1.6, marginBottom:20, opacity:0.8}}>{reports[0].content.slice(0, 150)}...</p>
+                    <button onClick={()=>setTab('Reports')} style={{width:'100%', padding:'12px', background:'rgba(255,255,255,0.1)', border:'none', borderRadius:10, color:'#fff', fontWeight:600, cursor:'pointer'}}>Read Full Report</button>
+                  </div>
+                )}
+                
+                <div className="card" style={{padding:24}}>
+                  <h3 style={{fontSize:16, fontWeight:700, marginBottom:16}}>Quick Actions</h3>
+                  <div style={{display:'grid', gap:12}}>
+                    <button onClick={()=>setTab('Scanning')} style={{...B.s, textAlign:'left', padding:'14px'}}>⚡ Start New Scan</button>
+                    <button onClick={async()=>{await fetch('/api/reports/generate',{method:'POST'}); loadReports();}} style={{...B.s, textAlign:'left', padding:'14px'}}>📊 Force Generate Report</button>
+                    <button onClick={async()=>{
+                      const r=await fetch('/api/weekly-excel');
+                      const blob=await r.blob();
+                      const url=URL.createObjectURL(blob);
+                      const a=document.createElement('a'); a.href=url; a.download='weekly.xlsx'; a.click();
+                    }} style={{...B.s, textAlign:'left', padding:'14px'}}>📥 Download Weekly Excel</button>
+                  </div>
+                </div>
+              </aside>
+            </div>
+          </div>
+        )}
+
+        {/* LEADS LIST */}
+        {tab==='Leads'&&(
+          <div className="fade-in">
+            <header style={{display:'flex', justifyContent:'space-between', alignItems:'flex-end', marginBottom:32}}>
+              <div>
+                <h1 style={{fontSize:32, fontWeight:800, color:'#1e293b', marginBottom:8}}>Leads Management</h1>
+                <p style={{color:'#64748b', fontSize:15}}>Review and organize your potential leads and their current status.</p>
+              </div>
+              <div style={{display:'flex', gap:12}}>
+                <select value={filterStatus} onChange={e=>setFilterStatus(e.target.value)} style={{width:180, fontWeight:500}}>
+                  <option value="all">Filter by Status</option>
+                  {Object.entries(STATUS).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}
+                </select>
+                <button onClick={()=>setTab('Settings')} style={B.p}>+ New Lead</button>
+              </div>
+            </header>
+
+            <div style={{display:'grid', gap:16}}>
+              {filtered.map(l=>(
+                <div key={l.id} className="card" style={{padding:24}}>
+                  <div style={{display:'flex', alignItems:'flex-start', gap:20}}>
+                    <div style={{width:50, height:50, background:'linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%)', borderRadius:14, display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, fontWeight:800, color:'#475569'}}>{l.name?.[0]}</div>
+                    <div style={{flex:1}}>
+                      <div style={{display:'flex', alignItems:'center', gap:12, marginBottom:8}}>
+                        <h3 style={{fontSize:18, fontWeight:800, color:'#1e293b'}}>{l.name}</h3>
+                        <Badge status={l.status}/>
+                        {l.sources && <span style={{fontSize:11, color:'#64748b', fontWeight:600, padding:'2px 8px', background:'#f1f5f9', borderRadius:6}}>{l.sources}</span>}
+                      </div>
+                      <p style={{fontSize:14, color:'#475569', marginBottom:16, lineHeight:1.6}}>{l.research}</p>
+                      
+                      <NoteEdit lead={l} onSave={async(id,note)=>{
+                        await fetch('/api/leads/'+id,{method:'PATCH',headers:{'Content-Type':'application/json','x-auth-token':token},body:JSON.stringify({note})});
+                        loadLeads();
+                      }}/>
+
+                      <div style={{display:'flex', gap:24, alignItems:'center', marginTop:16, borderTop:'1px solid #f1f5f9', paddingTop:16}}>
+                        <div style={{display:'flex', gap:8, alignItems:'center', fontSize:13, color:'#64748b'}}>
+                          <span style={{opacity:0.6}}>📱</span> @{l.telegram_username || 'N/A'}
+                        </div>
+                        {l.website && (
+                          <a href={l.website} target="_blank" rel="noreferrer" style={{fontSize:13, color:'#6366f1', fontWeight:600, display:'flex', gap:4, alignItems:'center'}}>
+                            <span>🌐</span> Visit Website
+                          </a>
+                        )}
+                        <div style={{fontSize:12, color:'#94a3b8', marginLeft:'auto'}}>Update: {l.last_contacted}</div>
+                      </div>
+                    </div>
+                    <div style={{display:'flex', flexDirection:'column', gap:8}}>
+                      <select value={l.status} onChange={e=>updateStatus(l.id, e.target.value)} style={{fontSize:12, padding:'6px 12px', width:140}}>
+                        {Object.entries(STATUS).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}
+                      </select>
+                      <button onClick={()=>deleteLead(l.id)} style={{...B.s, color:'#ef4444', borderColor:'#fee2e2', background:'#fef2f2', fontSize:12, padding:'6px 12px'}}>Delete</button>
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
-
-            <div style={{background:'#fff',border:'1px solid #E5E7EB',borderRadius:12,overflow:'hidden'}}>
-              <div style={{padding:'14px 18px',borderBottom:'1px solid #E5E7EB',fontWeight:600,fontSize:14}}>All Leads</div>
-              {leads.length===0&&<div style={{padding:24,color:'#9CA3AF',textAlign:'center',fontSize:13}}>Chưa có leads — bấm Auto Scan → Scan Now</div>}
-              {leads.map(l=>(
-                <div key={l.id} style={{display:'flex',alignItems:'center',gap:12,padding:'11px 18px',borderBottom:'1px solid #F3F4F6'}}>
-                  <div style={{width:32,height:32,background:'#F3F4F6',borderRadius:8,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700,fontSize:13,flexShrink:0}}>{l.name?.[0]||'?'}</div>
-                  <div style={{flex:1,minWidth:0}}>
-                    <div style={{fontWeight:600,fontSize:13}}>{l.name}</div>
-                    <div style={{fontSize:12,color:'#6B7280',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{l.note}</div>
-                  </div>
-                  <span style={{fontSize:11,color:'#9CA3AF'}}>{l.telegram_username?'📱 @'+l.telegram_username:l.lark_email?'📧 '+l.lark_email:''}</span>
-                  <Badge status={l.status}/>
-                  <div style={{fontSize:11,color:'#9CA3AF',flexShrink:0}}>{l.last_contacted}</div>
                 </div>
               ))}
             </div>
           </div>
         )}
 
-        {/* LEADS */}
-        {tab==='Leads'&&(
-          <div>
-            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
-              <h2 style={{fontSize:20,fontWeight:700}}>Leads ({filtered.length})</h2>
-              <div style={{display:'flex',gap:8,alignItems:'center'}}>
-                <select value={filterStatus} onChange={e=>{setFilterStatus(e.target.value);setSelectedLeads(new Set())}} style={{...inp,width:'auto'}}>
-                  <option value="all">All Status</option>
-                  {Object.entries(STATUS).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}
-                </select>
-              </div>
-            </div>
+        {/* REPORTS */}
+        {tab==='Reports'&&(
+          <div className="fade-in">
+             <header style={{marginBottom:32}}>
+              <h1 style={{fontSize:32, fontWeight:800, color:'#1e293b', marginBottom:8}}>Intelligence Reports</h1>
+              <p style={{color:'#64748b', fontSize:15}}>Browse daily automated summaries of your sales activity and outreach.</p>
+            </header>
 
-            {/* Bulk action bar */}
-            {selectedLeads.size>0&&(
-              <div style={{background:'#FEF2F2',border:'1px solid #FCA5A5',borderRadius:10,padding:'10px 16px',marginBottom:12,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-                <span style={{fontSize:13,color:'#DC2626',fontWeight:600}}>Đã chọn {selectedLeads.size} leads</span>
-                <div style={{display:'flex',gap:8}}>
-                  <button onClick={()=>setSelectedLeads(new Set())} style={{...B.s,fontSize:12,padding:'5px 12px'}}>Bỏ chọn</button>
-                  <button onClick={bulkDeleteLeads} disabled={bulkDeleting} style={{...B.r,fontWeight:600,padding:'5px 14px',opacity:bulkDeleting?0.6:1}}>
-                    {bulkDeleting?'⏳ Đang xóa...':'🗑 Xóa '+selectedLeads.size+' leads'}
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Select all */}
-            {filtered.length>0&&(
-              <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8,padding:'0 4px'}}>
-                <input type="checkbox" checked={selectedLeads.size===filtered.length&&filtered.length>0} onChange={()=>toggleAllLeads(filtered)} style={{cursor:'pointer',width:15,height:15}}/>
-                <span style={{fontSize:12,color:'#6B7280'}}>Chọn tất cả ({filtered.length})</span>
-              </div>
-            )}
-
-            {filtered.length===0&&<div style={{padding:40,color:'#9CA3AF',textAlign:'center',background:'#fff',borderRadius:12,border:'1px solid #E5E7EB'}}>Không có leads</div>}
-            {filtered.map(l=>(
-              <div key={l.id} style={{background:'#fff',border:'1px solid '+(selectedLeads.has(l.id)?'#7C3AED':'#E5E7EB'),borderRadius:12,padding:'14px 18px',marginBottom:8}}>
-                <div style={{display:'flex',alignItems:'flex-start',gap:10}}>
-                  <input type="checkbox" checked={selectedLeads.has(l.id)} onChange={()=>toggleLead(l.id)} style={{cursor:'pointer',width:15,height:15,marginTop:3,flexShrink:0}}/>
-                  <div style={{flex:1}}>
-                    <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:5}}>
-                      <span style={{fontWeight:700,fontSize:14}}>{l.name}</span>
-                      <Badge status={l.status}/>
-                      {l.sources&&<span style={{fontSize:11,background:'#F3F4F6',padding:'2px 8px',borderRadius:4,color:'#6B7280'}}>{l.sources}</span>}
-                    </div>
-                    {l.research&&<div style={{fontSize:13,color:'#6B7280',marginBottom:6,lineHeight:1.5}}>{l.research}</div>}
-                    <NoteEdit lead={l} onSave={async(id,note)=>{
-                      await fetch('/api/leads/'+id,{method:'PATCH',headers:{'Content-Type':'application/json','x-auth-token':token},body:JSON.stringify({note})});
-                      await loadLeads();
-                    }}/>
-                    <div style={{fontSize:12,color:'#9CA3AF',display:'flex',gap:12,flexWrap:'wrap'}}>
-                      {l.telegram_username&&<span>📱 @{l.telegram_username}</span>}
-                      {l.lark_email&&<span>📧 {l.lark_email}</span>}
-                      {l.website&&<a href={l.website} target="_blank" rel="noreferrer" style={{color:'#6366F1'}}>🌐</a>}
-                      <span>Last: {l.last_contacted}</span>
+            <div style={{display:'grid', gridTemplateColumns:'300px 1fr', gap:32, alignItems:'start'}}>
+              <div className="card" style={{padding:0, overflow:'hidden'}}>
+                <div style={{padding:'16px 20px', background:'#f8fafc', borderBottom:'1px solid #f1f5f9', fontWeight:700, fontSize:14}}>History</div>
+                {reports.map(r=>(
+                  <div key={r.id} onClick={()=>setSelectedReport(r)} style={{padding:'16px 20px', borderBottom:'1px solid #f8fafc', cursor:'pointer', background:selectedReport?.id===r.id?'#f1f5f9':'#fff'}}>
+                    <div style={{fontWeight:700, fontSize:14, marginBottom:4}}>{r.date}</div>
+                    <div style={{fontSize:11, color:'#64748b', fontWeight:600}}>
+                      {r.new_leads} NEW • {r.updated_leads} UPDATED
                     </div>
                   </div>
-                  <div style={{display:'flex',flexDirection:'column',gap:6,flexShrink:0}}>
-                    <select value={l.status} onChange={e=>updateStatus(l.id,e.target.value)} style={{...inp,width:130,fontSize:12,padding:'5px 8px'}}>
-                      {Object.entries(STATUS).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}
-                    </select>
-                    <button onClick={()=>deleteLead(l.id)} style={B.r}>🗑 Xóa</button>
-                  </div>
-                </div>
+                ))}
               </div>
-            ))}
-          </div>
-        )}
 
-        {/* DAILY REPORT */}
-        {tab==='Daily Report'&&(
-          <div>
-            <h2 style={{fontSize:20,fontWeight:700,marginBottom:6}}>Daily Reports</h2>
-            <p style={{color:'#6B7280',fontSize:13,marginBottom:20}}>Tổng hợp Telegram DM + Lark Email • Tự generate sau mỗi scan • 8:00 sáng hàng ngày</p>
-
-            {/* Manual generate button */}
-            <div style={{background:'#EFF6FF',border:'1px solid #BFDBFE',borderRadius:12,padding:16,marginBottom:16}}>
-              <div style={{fontWeight:600,color:'#1E40AF',marginBottom:8,fontSize:13}}>📝 Workflow để có report đúng format:</div>
-              <div style={{fontSize:12,color:'#374151',marginBottom:10,lineHeight:1.8}}>
-                1. Vào tab <strong>Leads</strong> → bấm <strong>✏️</strong> cạnh mỗi lead → ghi note tình trạng<br/>
-                &nbsp;&nbsp;&nbsp;&nbsp;Ví dụ: <em>đang offer dịch vụ PR, đang discuss thêm</em><br/>
-                2. Bấm <strong>Generate Report</strong> bên dưới
-              </div>
-              <button onClick={async()=>{
-                const r=await fetch('/api/reports/generate',{method:'POST'});
-                if(r.ok){setTimeout(loadReports,2000);setTimeout(loadReports,5000);}
-              }} style={{background:'#1D4ED8',color:'#fff',border:'none',padding:'8px 20px',borderRadius:8,fontSize:13,fontWeight:600,cursor:'pointer'}}>
-                📊 Generate Report Now
-              </button>
-            </div>
-
-            {reports.length===0?(
-              <div style={{background:'#fff',border:'1px solid #E5E7EB',borderRadius:12,padding:40,textAlign:'center',color:'#9CA3AF'}}>
-                Chưa có report — điền note leads rồi bấm Generate Report ở trên
-              </div>
-            ):(
-              <div style={{display:'grid',gridTemplateColumns:'240px 1fr',gap:16}}>
-                {/* Report list */}
-                <div style={{background:'#fff',border:'1px solid #E5E7EB',borderRadius:12,overflow:'hidden',height:'fit-content'}}>
-                  <div style={{padding:'12px 16px',borderBottom:'1px solid #E5E7EB',fontWeight:600,fontSize:13}}>History ({reports.length})</div>
-                  {reports.map(r=>(
-                    <div key={r.id} onClick={()=>setSelectedReport(r)}
-                      style={{padding:'12px 16px',borderBottom:'1px solid #F3F4F6',cursor:'pointer',background:selectedReport?.id===r.id?'#F3F4F6':'#fff'}}>
-                      <div style={{fontWeight:600,fontSize:13}}>{r.date}</div>
-                      <div style={{fontSize:11,color:'#6B7280',marginTop:2}}>
-                        📱{r.new_leads||0} new • 🔄{r.updated_leads||0} updated
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Report content */}
-                {selectedReport&&(
-                  <div style={{background:'#fff',border:'1px solid #E5E7EB',borderRadius:12,padding:20}}>
-                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
+              {selectedReport && (
+                <div className="card" style={{padding:40}}>
+                   <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:32}}>
                       <div>
-                        <div style={{fontWeight:700,fontSize:16}}>{selectedReport.date}</div>
-                        <div style={{fontSize:12,color:'#6B7280',marginTop:2}}>
-                          📱 Telegram + 📧 Lark Email • {selectedReport.leads_scanned} leads scanned
-                        </div>
+                        <h2 style={{fontSize:24, fontWeight:800, color:'#1e293b'}}>{selectedReport.date}</h2>
+                        <div style={{fontSize:13, color:'#64748b', marginTop:4, fontWeight:600}}>AUTOMATED SALES ANALYSIS</div>
                       </div>
-                      <div style={{display:'flex',gap:8}}>
-                        <button onClick={()=>{navigator.clipboard.writeText(selectedReport.content);setCopied(true);setTimeout(()=>setCopied(false),2000)}}
-                          style={{...B.s,fontSize:12,padding:'6px 14px'}}>{copied?'✅ Copied':'📋 Copy'}</button>
-                        <button onClick={()=>{{setEditReportContent(selectedReport.content);setEditingReport(true);}}} style={{...B.s,fontSize:12,padding:'6px 14px'}}>✏️ Edit</button>
-                        <button onClick={()=>deleteReport(selectedReport.id)} style={B.r}>🗑 Xóa</button>
+                      <div style={{display:'flex', gap:10}}>
+                        <button onClick={()=>{navigator.clipboard.writeText(selectedReport.content); setCopied(true); setTimeout(()=>setCopied(false),2000)}} style={B.s}>
+                          {copied ? 'Copied ✓' : 'Copy Text'}
+                        </button>
+                        <button onClick={async()=>{if(confirm('Delete this report?')){await fetch('/api/reports/'+selectedReport.id,{method:'DELETE',headers:{'x-auth-token':token}}); loadReports(); setSelectedReport(null);}}} style={{...B.s, color:'#ef4444'}}>Delete</button>
                       </div>
-                    </div>
-                    {editingReport ? (
-                      <div>
-                        <textarea value={editReportContent} onChange={e=>setEditReportContent(e.target.value)}
-                          style={{width:'100%',minHeight:300,padding:12,fontFamily:'monospace',fontSize:13,lineHeight:1.8,border:'1px solid #7C3AED',borderRadius:8,resize:'vertical',boxSizing:'border-box'}}/>
-                        <div style={{display:'flex',gap:8,marginTop:8}}>
-                          <button onClick={()=>saveReport(selectedReport.id,editReportContent)} style={{background:'#7C3AED',color:'#fff',border:'none',padding:'8px 20px',borderRadius:8,fontSize:13,fontWeight:600,cursor:'pointer'}}>💾 Lưu</button>
-                          <button onClick={()=>setEditingReport(false)} style={{background:'#fff',color:'#374151',border:'1px solid #D1D5DB',padding:'8px 16px',borderRadius:8,fontSize:13,cursor:'pointer'}}>Hủy</button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div style={{background:'#F9FAFB',borderRadius:8,padding:16,fontFamily:'monospace',fontSize:13,whiteSpace:'pre-wrap',lineHeight:1.8,color:'#111',maxHeight:500,overflowY:'auto'}}>
-                        {selectedReport.content}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* WEEKLY REPORT */}
-        {tab==='Weekly Report'&&(
-          <div>
-            <h2 style={{fontSize:20,fontWeight:700,marginBottom:6}}>Weekly Report</h2>
-            <p style={{color:'#6B7280',fontSize:13,marginBottom:20}}>Export Excel đúng format bảng cũ — STT, Name, Website, Sources, TG, Research, Note, Crosscheck, CEO Check</p>
-            <div style={{background:'#fff',border:'1px solid #E5E7EB',borderRadius:12,padding:24}}>
-              <div style={{display:'flex',gap:12,marginBottom:20,flexWrap:'wrap'}}>
-                <Stat label="Total Leads" value={leads.length}/>
-                <Stat label="Interested" value={counts.interested||0} color="#059669"/>
-                <Stat label="Waiting" value={counts.waiting||0} color="#D97706"/>
-                <Stat label="Follow Up" value={counts.follow_up_needed||0} color="#7C3AED"/>
-              </div>
-              <div style={{background:'#F0FDF4',border:'1px solid #BBF7D0',borderRadius:10,padding:16,marginBottom:20}}>
-                <div style={{fontWeight:600,color:'#166534',marginBottom:8}}>📊 Export Weekly Excel</div>
-                <div style={{fontSize:13,color:'#166534',marginBottom:12}}>File Excel đúng format bảng cũ với màu sắc theo status (xanh = active, hồng = no budget/lost)</div>
-                <button onClick={async()=>{
-                  try{
-                    const r=await fetch('/api/weekly-excel');
-                    if(!r.ok){const e=await r.json();alert('Lỗi: '+e.error);return;}
-                    const blob=await r.blob();
-                    const url=URL.createObjectURL(blob);
-                    const a=document.createElement('a');
-                    a.href=url;
-                    a.download='weekly-report-'+new Date().toISOString().slice(0,10)+'.xlsx';
-                    a.click();URL.revokeObjectURL(url);
-                  }catch(e){alert('Lỗi: '+e.message);}
-                }} style={{...B.p,background:'#059669',fontSize:14,padding:'10px 24px'}}>
-                  📥 Download Excel ({leads.length} leads)
-                </button>
-              </div>
-
-              {/* Bulk delete bar */}
-              {selectedLeads.size>0&&(
-                <div style={{background:'#FEF2F2',border:'1px solid #FCA5A5',borderRadius:10,padding:'10px 16px',marginBottom:12,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-                  <span style={{fontSize:13,color:'#DC2626',fontWeight:600}}>Đã chọn {selectedLeads.size} leads</span>
-                  <div style={{display:'flex',gap:8}}>
-                    <button onClick={()=>setSelectedLeads(new Set())} style={{...B.s,fontSize:12,padding:'5px 12px'}}>Bỏ chọn</button>
-                    <button onClick={bulkDeleteLeads} disabled={bulkDeleting} style={{...B.r,fontWeight:600,padding:'5px 14px'}}>
-                      {bulkDeleting?'⏳ Đang xóa...':'🗑 Xóa '+selectedLeads.size+' leads'}
-                    </button>
-                  </div>
+                   </div>
+                   <div style={{background:'#f8fafc', padding:'32px', borderRadius:20, fontFamily:'"Fira Code", monospace', fontSize:14, lineHeight:1.8, color:'#334155', border:'1px solid #f1f5f9', whiteSpace:'pre-wrap'}}>
+                      {selectedReport.content}
+                   </div>
                 </div>
               )}
-
-              {/* Preview bảng */}
-              <div style={{overflowX:'auto'}}>
-                <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
-                  <thead>
-                    <tr>
-                      <th style={{background:'#FFF9C4',border:'1px solid #E5E7EB',padding:'8px 10px',textAlign:'center',width:36}}>
-                        <input type="checkbox" checked={selectedLeads.size===leads.length&&leads.length>0} onChange={()=>toggleAllLeads(leads)} style={{cursor:'pointer'}}/>
-                      </th>
-                      {['STT','Name','Website','Sources','TG','Research','Note','Status',''].map(h=>(
-                        <th key={h} style={{background:'#FFF9C4',border:'1px solid #E5E7EB',padding:'8px 10px',textAlign:'center',fontWeight:600,whiteSpace:'nowrap'}}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {leads.map((l,i)=>{
-                      const bg=l.status==='no_budget'||l.status==='closed_lost'?'#FCE4EC':
-                               l.status==='interested'||l.status==='waiting'||l.status==='follow_up_needed'?'#E8F5E9':'#fff';
-                      return(
-                        <tr key={l.id} style={{background:selectedLeads.has(l.id)?'#EDE9FE':bg}}>
-                          <td style={{border:'1px solid #E5E7EB',padding:'6px 8px',textAlign:'center'}}>
-                            <input type="checkbox" checked={selectedLeads.has(l.id)} onChange={()=>toggleLead(l.id)} style={{cursor:'pointer'}}/>
-                          </td>
-                          <td style={{border:'1px solid #E5E7EB',padding:'6px 8px',textAlign:'center'}}>{i+1}</td>
-                          <td style={{border:'1px solid #E5E7EB',padding:'6px 8px',fontWeight:600}}>{l.name}</td>
-                          <td style={{border:'1px solid #E5E7EB',padding:'6px 8px',maxWidth:120,overflow:'hidden',textOverflow:'ellipsis'}}>{l.website}</td>
-                          <td style={{border:'1px solid #E5E7EB',padding:'6px 8px'}}>{l.sources}</td>
-                          <td style={{border:'1px solid #E5E7EB',padding:'6px 8px'}}>@{l.telegram_username}</td>
-                          <td style={{border:'1px solid #E5E7EB',padding:'6px 8px',maxWidth:200}}>{l.research?.slice(0,80)}</td>
-                          <td style={{border:'1px solid #E5E7EB',padding:'4px 6px',maxWidth:200}}>
-                            {editingNote?.id===l.id ? (
-                              <div style={{display:'flex',gap:4}}>
-                                <input value={editingNote.value} onChange={e=>setEditingNote({...editingNote,value:e.target.value})}
-                                  onKeyDown={e=>{if(e.key==='Enter')saveLeadNote(l.id,editingNote.value);if(e.key==='Escape')setEditingNote(null);}}
-                                  style={{fontSize:11,padding:'2px 6px',border:'1px solid #7C3AED',borderRadius:4,flex:1,width:'100%'}} autoFocus/>
-                                <button onClick={()=>saveLeadNote(l.id,editingNote.value)} style={{fontSize:10,padding:'2px 6px',background:'#7C3AED',color:'#fff',border:'none',borderRadius:4,cursor:'pointer'}}>✓</button>
-                                <button onClick={()=>setEditingNote(null)} style={{fontSize:10,padding:'2px 6px',background:'#fff',color:'#6B7280',border:'1px solid #D1D5DB',borderRadius:4,cursor:'pointer'}}>✕</button>
-                              </div>
-                            ) : (
-                              <div style={{display:'flex',alignItems:'center',gap:4,cursor:'pointer'}} onClick={()=>setEditingNote({id:l.id,value:l.note||''})}>
-                                <span style={{fontSize:11,flex:1}}>{l.note?.slice(0,60)||<em style={{color:'#9CA3AF'}}>click để thêm</em>}</span>
-                                <span style={{fontSize:10,color:'#9CA3AF'}}>✏️</span>
-                              </div>
-                            )}
-                          </td>
-                          <td style={{border:'1px solid #E5E7EB',padding:'6px 8px'}}><Badge status={l.status}/></td>
-                          <td style={{border:'1px solid #E5E7EB',padding:'4px 6px',textAlign:'center'}}>
-                            <button onClick={()=>deleteLead(l.id)} style={{background:'#FEF2F2',color:'#DC2626',border:'1px solid #FCA5A5',borderRadius:4,padding:'2px 8px',fontSize:11,cursor:'pointer'}}>🗑</button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
             </div>
           </div>
         )}
 
-        {/* AUTO SCAN */}
-        {tab==='Auto Scan'&&<ScanTab leads={leads}/>}
+        {/* SCANNING / SETTINGS */}
+        {tab==='Scanning' && <ScanTab leads={leads} token={token}/>}
+        
+        {tab==='Settings' && (
+           <div className="fade-in" style={{maxWidth:600, margin:'0 auto'}}>
+             <header style={{marginBottom:32, textAlign:'center'}}>
+               <h1 style={{fontSize:32, fontWeight:800, color:'#1e293b', marginBottom:8}}>Configuration</h1>
+               <p style={{color:'#64748b', fontSize:15}}>Manage your connection settings and lead intake.</p>
+             </header>
 
-        {/* ADD LEAD */}
-        {tab==='Add Lead'&&(
-          <div>
-            <h2 style={{fontSize:20,fontWeight:700,marginBottom:6}}>Add Lead Thủ Công</h2>
-            <p style={{color:'#6B7280',fontSize:13,marginBottom:16}}>Thêm lead → hệ thống tự quét DM và phân tích ngay</p>
-            <div style={{background:'#fff',border:'1px solid #E5E7EB',borderRadius:12,padding:20}}>
-              <div style={{display:'flex',flexDirection:'column',gap:10,marginBottom:12}}>
-                <input placeholder="Telegram username (không có @) *" value={newLead.telegram_username} onChange={e=>setNewLead({...newLead,telegram_username:e.target.value.replace('@','')})} style={inp}/>
-                <input placeholder="Lark email (nếu có)" value={newLead.lark_email} onChange={e=>setNewLead({...newLead,lark_email:e.target.value})} style={inp}/>
-                <input placeholder="Website (nếu có)" value={newLead.website} onChange={e=>setNewLead({...newLead,website:e.target.value})} style={inp}/>
-              </div>
-              <button onClick={addLead} disabled={adding} style={{...B.p,width:'100%',opacity:adding?0.6:1}}>
-                {adding?'⏳ Đang thêm + phân tích...':'+ Add Lead & Auto Scan'}
-              </button>
-            </div>
-          </div>
+             <div className="card" style={{padding:32}}>
+                <h3 style={{fontSize:18, fontWeight:700, marginBottom:20}}>Add New Lead</h3>
+                <div style={{display:'grid', gap:16, marginBottom:24}}>
+                   <div>
+                     <label style={{fontSize:12, fontWeight:700, color:'#64748b', marginBottom:8, display:'block'}}>TELEGRAM USERNAME</label>
+                     <input placeholder="username (without @)" value={newLead.telegram_username} onChange={e=>setNewLead({...newLead, telegram_username: e.target.value.replace('@','')})}/>
+                   </div>
+                   <div>
+                     <label style={{fontSize:12, fontWeight:700, color:'#64748b', marginBottom:8, display:'block'}}>WEBSITE</label>
+                     <input placeholder="https://..." value={newLead.website} onChange={e=>setNewLead({...newLead, website: e.target.value})}/>
+                   </div>
+                   <div>
+                     <label style={{fontSize:12, fontWeight:700, color:'#64748b', marginBottom:8, display:'block'}}>SOURCES</label>
+                     <input placeholder="e.g. TG Group, Event, Referral" value={newLead.sources} onChange={e=>setNewLead({...newLead, sources: e.target.value})}/>
+                   </div>
+                </div>
+                <button onClick={addLead} disabled={adding} style={{...B.p, width:'100%', padding:16, fontSize:15}}>
+                  {adding ? 'Analyzing Lead...' : 'Initialize & Scan Lead'}
+                </button>
+             </div>
+           </div>
         )}
 
       </div>
+
+      <style>{`
+        .fade-in {
+          animation: fadeIn 0.4s ease-out;
+        }
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(10px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
     </div>
   )
 }
