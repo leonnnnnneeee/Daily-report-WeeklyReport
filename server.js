@@ -28,7 +28,8 @@ function requireAuth(req,res,next){
 
 app.post('/api/login',(req,res)=>{
   const{username,password}=req.body;
-  if(username==='Leon'&&password==='coincu123'){
+  const validUsers=[{u:'Leon',p:'coincu123'},{u:'admin',p:'coincu2026'}];
+  if(validUsers.some(v=>v.u===username&&v.p===password)){
     res.json({ok:true,token:VALID_TOKEN});
   }else{
     res.json({ok:false,message:'Sai username hoặc password'});
@@ -485,6 +486,7 @@ app.listen(PORT,'0.0.0.0',async()=>{
   const s=await getSession();log('🔐 Session: '+(s?'LOADED ✅':'NOT SET ❌'));
   const ai=await getAIKey();log('🤖 AI: '+(ai?ai.type+' READY ✅':'NOT SET ❌'));
 });
+
 
 
 
