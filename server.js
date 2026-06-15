@@ -476,7 +476,7 @@ app.get('/api/weekly-excel',async(req,res)=>{
 function today_str(){return new Date().toISOString().slice(0,10);}
 
 // ── CRON ───────────────────────────────────────────
-cron.schedule('40 9 * * *',()=>{log('[CRON] 9:40AM daily scan');runScan().catch(e=>log('❌ '+e.message));},{timezone:'Asia/Ho_Chi_Minh'});
+cron.schedule('40 9 * * 1-5',()=>{log('[CRON] 9:40AM daily scan (Mon-Fri)');runScan().catch(e=>log('❌ '+e.message));},{timezone:'Asia/Ho_Chi_Minh'});
 
 app.get('*',(req,res)=>res.sendFile(path.join(__dirname,'dist','index.html')));
 
@@ -486,6 +486,7 @@ app.listen(PORT,'0.0.0.0',async()=>{
   const s=await getSession();log('🔐 Session: '+(s?'LOADED ✅':'NOT SET ❌'));
   const ai=await getAIKey();log('🤖 AI: '+(ai?ai.type+' READY ✅':'NOT SET ❌'));
 });
+
 
 
 
