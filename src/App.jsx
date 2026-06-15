@@ -27,8 +27,8 @@ function Badge({status}) {
 function Stat({label, value, color}) {
   return (
     <div className="stat-card" style={{ flex: 1, minWidth: 140 }}>
-      <div style={{fontSize:12, fontWeight:600, color:'#64748b', textTransform:'uppercase', letterSpacing:'0.05em'}}>{label}</div>
-      <div style={{fontSize:28, fontWeight:800, color:color || '#1e293b'}}>{value}</div>
+      <div style={{fontSize:11, fontWeight:700, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'0.05em'}}>{label}</div>
+      <div style={{fontSize:24, fontWeight:800, color:color || '#1e293b'}}>{value}</div>
     </div>
   )
 }
@@ -56,7 +56,7 @@ function NoteEdit({lead, onSave}){
   )
 }
 
-const TABS = ['Dashboard','Leads','Reports','Scanning','Settings']
+const TABS = ['Dashboard','Leads','Reports','Weekly','Scanning','Settings']
 
 export default function App() {
   const [token,setToken]=useState(()=>localStorage.getItem('auth_token')||'')
@@ -120,11 +120,46 @@ export default function App() {
     await fetch('/api/leads/'+id,{method:'DELETE',headers:{'x-auth-token':token}});await loadLeads()
   }
 
+  async function deleteReport(id){
+    if(!confirm('Delete this report?'))return
+    await fetch('/api/reports/'+id,{method:'DELETE',headers:{'x-auth-token':token}})
+    await loadReports(); setSelectedReport(null)
+  }
+
+  async function saveReport(id,content){
+    await fetch('/api/reports/'+id,{method:'PATCH',headers:{'Content-Type':'application/json','x-auth-token':token},body:JSON.stringify({content})})
+    setEditingReport(false)
+    await loadReports()
+  }
+
+  async function saveLeadNote(id,note){
+    await fetch('/api/leads/'+id,{method:'PATCH',headers:{'Content-Type':'application/json','x-auth-token':token},body:JSON.stringify({note})})
+    setEditingNote(null)
+    await loadLeads()
+  }
+
+  function toggleLead(id){
+    setSelectedLeads(prev=>{const n=new Set(prev);n.has(id)?n.delete(id):n.add(id);return n})
+  }
+
+  function toggleAllLeads(ls){
+    if(selectedLeads.size===ls.length) setSelectedLeads(new Set())
+    else setSelectedLeads(new Set(ls.map(l=>l.id)))
+  }
+
+  async function bulkDeleteLeads(){
+    if(!selectedLeads.size)return
+    if(!confirm('Delete '+selectedLeads.size+' leads?'))return
+    setBulkDeleting(true)
+    await Promise.all([...selectedLeads].map(id=>fetch('/api/leads/'+id,{method:'DELETE',headers:{'x-auth-token':token}})))
+    setSelectedLeads(new Set())
+    await loadLeads(); setBulkDeleting(false)
+  }
+
   if(!token) return <Login onLogin={t=>{setToken(t);localStorage.setItem('auth_token',t);}} />
 
   return (
     <div style={{minHeight:'100vh'}}>
-      {/* Sidebar/Header Navigation */}
       <div className="glass-header" style={{color:'#fff', padding:'0 32px', height:70, display:'flex', alignItems:'center', justifyContent:'space-between', position:'sticky', top:0, zIndex:100}}>
         <div style={{display:'flex', alignItems:'center', gap:12}}>
           <div style={{width:36, height:36, background:'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)', borderRadius:10, display:'flex', alignItems:'center', justifyContent:'center', fontSize:20, fontWeight:800}}>C</div>
@@ -272,7 +307,7 @@ export default function App() {
           </div>
         )}
 
-        {/* REPORTS */}
+        {/* REPORTS (DAILY) */}
         {tab==='Reports'&&(
           <div className="fade-in">
              <header style={{marginBottom:32}}>
@@ -284,7 +319,7 @@ export default function App() {
               <div className="card" style={{padding:0, overflow:'hidden'}}>
                 <div style={{padding:'16px 20px', background:'#f8fafc', borderBottom:'1px solid #f1f5f9', fontWeight:700, fontSize:14}}>History</div>
                 {reports.map(r=>(
-                  <div key={r.id} onClick={()=>setSelectedReport(r)} style={{padding:'16px 20px', borderBottom:'1px solid #f8fafc', cursor:'pointer', background:selectedReport?.id===r.id?'#f1f5f9':'#fff'}}>
+                  <div key={r.id} onClick={()=>{setSelectedReport(r); setEditingReport(false)}} style={{padding:'16px 20px', borderBottom:'1px solid #f8fafc', cursor:'pointer', background:selectedReport?.id===r.id?'#f1f5f9':'#fff'}}>
                     <div style={{fontWeight:700, fontSize:14, marginBottom:4}}>{r.date}</div>
                     <div style={{fontSize:11, color:'#64748b', fontWeight:600}}>
                       {r.new_leads} NEW • {r.updated_leads} UPDATED
@@ -304,14 +339,99 @@ export default function App() {
                         <button onClick={()=>{navigator.clipboard.writeText(selectedReport.content); setCopied(true); setTimeout(()=>setCopied(false),2000)}} style={B.s}>
                           {copied ? 'Copied ✓' : 'Copy Text'}
                         </button>
-                        <button onClick={async()=>{if(confirm('Delete this report?')){await fetch('/api/reports/'+selectedReport.id,{method:'DELETE',headers:{'x-auth-token':token}}); loadReports(); setSelectedReport(null);}}} style={{...B.s, color:'#ef4444'}}>Delete</button>
+                        <button onClick={()=>{setEditReportContent(selectedReport.content); setEditingReport(true);}} style={B.s}>✏️ Edit</button>
+                        <button onClick={()=>deleteReport(selectedReport.id)} style={{...B.s, color:'#ef4444'}}>Delete</button>
                       </div>
                    </div>
-                   <div style={{background:'#f8fafc', padding:'32px', borderRadius:20, fontFamily:'"Fira Code", monospace', fontSize:14, lineHeight:1.8, color:'#334155', border:'1px solid #f1f5f9', whiteSpace:'pre-wrap'}}>
-                      {selectedReport.content}
-                   </div>
+                   
+                   {editingReport ? (
+                      <div className="fade-in">
+                        <textarea value={editReportContent} onChange={e=>setEditReportContent(e.target.value)}
+                          style={{width:'100%', minHeight:400, padding:24, fontFamily:'"Fira Code", monospace', fontSize:14, lineHeight:1.8, border:'1px solid #6366f1', borderRadius:20, resize:'vertical', background:'#fff', outline:'none'}}/>
+                        <div style={{display:'flex', gap:12, marginTop:20}}>
+                          <button onClick={()=>saveReport(selectedReport.id, editReportContent)} style={B.p}>Save Changes</button>
+                          <button onClick={()=>setEditingReport(false)} style={B.s}>Discard</button>
+                        </div>
+                      </div>
+                   ) : (
+                      <div style={{background:'#f8fafc', padding:'32px', borderRadius:20, fontFamily:'"Fira Code", monospace', fontSize:14, lineHeight:1.8, color:'#334155', border:'1px solid #f1f5f9', whiteSpace:'pre-wrap'}}>
+                        {selectedReport.content}
+                      </div>
+                   )}
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* WEEKLY REPORT */}
+        {tab==='Weekly'&&(
+          <div className="fade-in">
+             <header style={{display:'flex', justifyContent:'space-between', alignItems:'flex-end', marginBottom:32}}>
+              <div>
+                <h1 style={{fontSize:32, fontWeight:800, color:'#1e293b', marginBottom:8}}>Weekly Summary</h1>
+                <p style={{color:'#64748b', fontSize:15}}>Review and export your weekly progress for stakeholders.</p>
+              </div>
+              <button onClick={async()=>{
+                  const r=await fetch('/api/weekly-excel');
+                  const blob=await r.blob();
+                  const url=URL.createObjectURL(blob);
+                  const a=document.createElement('a'); a.href=url; a.download='weekly-report.xlsx'; a.click();
+                }} style={B.p}>📥 Download Excel Report</button>
+            </header>
+
+            <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(180px, 1fr))', gap:20, marginBottom:40}}>
+              <Stat label="Total Leads" value={leads.length}/>
+              <Stat label="Interested" value={counts.interested||0} color="#059669"/>
+              <Stat label="Waiting" value={counts.waiting||0} color="#d97706"/>
+              <Stat label="Follow Up" value={counts.follow_up_needed||0} color="#7c3aed"/>
+            </div>
+
+            {selectedLeads.size > 0 && (
+              <div style={{background:'#fef2f2', border:'1px solid #fee2e2', padding:'12px 24px', borderRadius:12, marginBottom:16, display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                <span style={{fontSize:14, fontWeight:700, color:'#ef4444'}}>Selected {selectedLeads.size} leads</span>
+                <div style={{display:'flex', gap:8}}>
+                  <button onClick={()=>setSelectedLeads(new Set())} style={B.s}>Clear</button>
+                  <button onClick={bulkDeleteLeads} disabled={bulkDeleting} style={B.r}>{bulkDeleting ? 'Deleting...' : 'Delete Selected'}</button>
+                </div>
+              </div>
+            )}
+
+            <div className="card" style={{overflowX:'auto', padding:0}}>
+              <table style={{width:'100%', borderCollapse:'collapse', fontSize:13, textAlign:'left'}}>
+                <thead>
+                  <tr style={{background:'#f8fafc', borderBottom:'1px solid #f1f5f9'}}>
+                    <th style={{padding:'16px 24px', width:40}}>
+                      <input type="checkbox" checked={selectedLeads.size===leads.length} onChange={()=>toggleAllLeads(leads)}/>
+                    </th>
+                    <th style={{padding:'16px 24px', fontWeight:700, color:'#64748b'}}>NAME</th>
+                    <th style={{padding:'16px 24px', fontWeight:700, color:'#64748b'}}>SOURCES</th>
+                    <th style={{padding:'16px 24px', fontWeight:700, color:'#64748b'}}>NOTE</th>
+                    <th style={{padding:'16px 24px', fontWeight:700, color:'#64748b'}}>STATUS</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {leads.map(l=>(
+                    <tr key={l.id} style={{borderBottom:'1px solid #f8fafc', background:selectedLeads.has(l.id)?'#f5f3ff':'transparent'}}>
+                      <td style={{padding:'16px 24px'}}>
+                        <input type="checkbox" checked={selectedLeads.has(l.id)} onChange={()=>toggleLead(l.id)}/>
+                      </td>
+                      <td style={{padding:'16px 24px', fontWeight:700, color:'#1e293b'}}>{l.name}</td>
+                      <td style={{padding:'16px 24px', color:'#64748b'}}>{l.sources}</td>
+                      <td style={{padding:'16px 24px'}}>
+                        <div style={{fontSize:12, color:'#475569', cursor:'pointer'}} onClick={()=>setEditingNote({id:l.id, value:l.note||''})}>
+                          {editingNote?.id===l.id ? (
+                            <input value={editingNote.value} onChange={e=>setEditingNote({...editingNote, value:e.target.value})}
+                              onKeyDown={e=>{if(e.key==='Enter')saveLeadNote(l.id, editingNote.value); if(e.key==='Escape')setEditingNote(null);}}
+                              style={{fontSize:12, padding:'4px 8px', border:'1px solid #6366f1', outline:'none'}} autoFocus/>
+                          ) : (l.note || 'No note')}
+                        </div>
+                      </td>
+                      <td style={{padding:'16px 24px'}}><Badge status={l.status}/></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
         )}
@@ -330,15 +450,15 @@ export default function App() {
                 <h3 style={{fontSize:18, fontWeight:700, marginBottom:20}}>Add New Lead</h3>
                 <div style={{display:'grid', gap:16, marginBottom:24}}>
                    <div>
-                     <label style={{fontSize:12, fontWeight:700, color:'#64748b', marginBottom:8, display:'block'}}>TELEGRAM USERNAME</label>
+                     <label style={{fontSize:11, fontWeight:700, color:'#94a3b8', marginBottom:8, display:'block', letterSpacing:'0.05em'}}>TELEGRAM USERNAME</label>
                      <input placeholder="username (without @)" value={newLead.telegram_username} onChange={e=>setNewLead({...newLead, telegram_username: e.target.value.replace('@','')})}/>
                    </div>
                    <div>
-                     <label style={{fontSize:12, fontWeight:700, color:'#64748b', marginBottom:8, display:'block'}}>WEBSITE</label>
+                     <label style={{fontSize:11, fontWeight:700, color:'#94a3b8', marginBottom:8, display:'block', letterSpacing:'0.05em'}}>WEBSITE</label>
                      <input placeholder="https://..." value={newLead.website} onChange={e=>setNewLead({...newLead, website: e.target.value})}/>
                    </div>
                    <div>
-                     <label style={{fontSize:12, fontWeight:700, color:'#64748b', marginBottom:8, display:'block'}}>SOURCES</label>
+                     <label style={{fontSize:11, fontWeight:700, color:'#94a3b8', marginBottom:8, display:'block', letterSpacing:'0.05em'}}>SOURCES</label>
                      <input placeholder="e.g. TG Group, Event, Referral" value={newLead.sources} onChange={e=>setNewLead({...newLead, sources: e.target.value})}/>
                    </div>
                 </div>
