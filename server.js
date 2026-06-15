@@ -563,3 +563,22 @@ app.post('/api/chat/send', requireAuth, async (req, res) => {
     res.json({ ok: true });
   } catch (e) { log('Send message error: ' + e.message); res.status(500).json({ error: e.message }); }
 });
+
+// ── RESOLVE CHAT BY USERNAME ──────────────────────
+app.get('/api/chat/resolve/:username', requireAuth, async (req, res) => {
+  const session = await getSession();
+  if (!session) return res.status(401).json({ error: 'No session' });
+  const { TelegramClient } = require('telegram'); const { StringSession } = require('telegram/sessions');
+  try {
+    const client = new TelegramClient(new StringSession(session), TG_API_ID, TG_API_HASH, { connectionRetries: 3 });
+    await client.connect();
+    const entity = await client.getEntity(req.params.username);
+    const chat = {
+      id: entity.id.toString(),
+      name: ((entity.firstName || '') + ' ' + (entity.lastName || '')).trim() || entity.username || 'Unknown',
+      lastMsg: '', unread: 0
+    };
+    await client.disconnect();
+    res.json(chat);
+  } catch (e) { log('Resolve chat error: ' + e.message); res.status(404).json({ error: 'User not found' }); }
+});

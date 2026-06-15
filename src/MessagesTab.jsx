@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 
-export default function MessagesTab({ token }) {
+export default function MessagesTab({ token, initialChat }) {
   const [chats, setChats] = useState([])
-  const [selectedChat, setSelectedReport] = useState(null)
+  const [selectedChat, setSelectedChat] = useState(null)
   const [messages, setMessages] = useState([])
   const [loading, setLoading] = useState(false)
   const [sending, setSending] = useState(false)
@@ -12,6 +12,12 @@ export default function MessagesTab({ token }) {
   useEffect(() => {
     loadChats()
   }, [])
+
+  useEffect(() => {
+    if (initialChat) {
+      handleOpenInitialChat(initialChat)
+    }
+  }, [initialChat])
 
   useEffect(() => {
     if (selectedChat) {
@@ -33,6 +39,25 @@ export default function MessagesTab({ token }) {
       if (Array.isArray(d)) setChats(d)
     } catch {}
     setLoading(false)
+  }
+
+  async function handleOpenInitialChat(target) {
+    // target can be { id, name } or { username }
+    if (target.id) {
+      setSelectedChat(target)
+    } else if (target.username) {
+      setLoading(true)
+      try {
+        const r = await fetch(\`/api/chat/resolve/\${target.username}\`, { headers: { 'x-auth-token': token } })
+        const d = await r.json()
+        if (d.id) {
+          setSelectedChat(d)
+          // Add to chats list if not present
+          setChats(prev => prev.some(c => c.id === d.id) ? prev : [d, ...prev])
+        }
+      } catch (e) { alert('Could not find Telegram user @' + target.username) }
+      setLoading(false)
+    }
   }
 
   async function loadMessages(chatId, silent = false) {
@@ -68,9 +93,9 @@ export default function MessagesTab({ token }) {
           <h3 style={{ fontSize: 16, fontWeight: 700 }}>Messages</h3>
         </div>
         <div style={{ flex: 1, overflowY: 'auto', padding: '12px 0' }}>
-          {loading && <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-secondary)' }}>Loading chats...</div>}
+          {loading && <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-secondary)' }}>Loading...</div>}
           {chats.map(c => (
-            <div key={c.id} onClick={() => setSelectedReport(c)}
+            <div key={c.id} onClick={() => setSelectedChat(c)}
               style={{ padding: '14px 20px', display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', background: selectedChat?.id === c.id ? 'rgba(139, 92, 246, 0.1)' : 'transparent', borderBottom: '1px solid var(--border)' }}>
               <div style={{ width: 40, height: 40, background: '#27272a', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800 }}>{c.name[0]}</div>
               <div style={{ flex: 1, minWidth: 0 }}>
@@ -92,12 +117,15 @@ export default function MessagesTab({ token }) {
                 <div style={{ width: 36, height: 36, background: '#27272a', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800 }}>{selectedChat.name[0]}</div>
                 <div>
                   <div style={{ fontSize: 15, fontWeight: 700 }}>{selectedChat.name}</div>
-                  <div style={{ fontSize: 11, color: 'var(--success)', fontWeight: 600 }}>ONLINE</div>
+                  <div style={{ fontSize: 11, color: 'var(--success)', fontWeight: 600 }}>CONNECTED</div>
                 </div>
               </div>
             </div>
 
             <div style={{ flex: 1, overflowY: 'auto', padding: '24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {messages.length === 0 && !loading && (
+                <div style={{ textAlign: 'center', color: 'var(--text-secondary)', fontSize: 13, marginTop: 40 }}>Start the conversation with @{selectedChat.name}</div>
+              )}
               {messages.map((m, i) => (
                 <div key={i} style={{ alignSelf: m.fromMe ? 'flex-end' : 'flex-start', maxWidth: '70%' }}>
                   <div style={{ 
@@ -131,7 +159,7 @@ export default function MessagesTab({ token }) {
           </>
         ) : (
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)', fontSize: 14 }}>
-            Select a conversation to start messaging
+            Select a contact to start messaging
           </div>
         )}
       </div>
