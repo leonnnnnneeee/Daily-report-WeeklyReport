@@ -161,6 +161,10 @@ app.get('/api/stats',async(req,res)=>{
 // ── REPORTS API ────────────────────────────────────
 app.get('/api/reports',requireAuth,async(req,res)=>res.json(await db('get','reports','','order=created_at.desc&limit=30')));
 app.get('/api/reports/latest',async(req,res)=>{const r=await db('get','reports','','order=created_at.desc&limit=1');res.json(r[0]||null);});
+app.patch('/api/reports/:id',async(req,res)=>{
+  await db('patch','reports',{content:req.body.content,updated_at:new Date().toISOString()},'id=eq.'+req.params.id);
+  res.json({ok:true});
+});
 app.delete('/api/reports/:id',async(req,res)=>{await db('delete','reports',null,'id=eq.'+req.params.id);res.json({ok:true});});
 
 // ── MANUAL REPORT ─────────────────────────────────
@@ -370,16 +374,15 @@ async function generateReport(newLeads,updatedLeads){
   const today=new Date();
   const d=today.getDate()+'-'+(today.getMonth()+1);
 
-  const todayStr=today.toISOString().slice(0,10);
   // Chỉ lấy leads được scan HÔM NAY
-  const todayLeads=leads.filter(function(l){
+  const todayStr=today.toISOString().slice(0,10);
+  const activeLeads=leads.filter(function(l){
     if(l.status==='new')return false;
+    // Chỉ hiện nếu last_scanned là hôm nay
     const scanned=(l.last_scanned||'').slice(0,10);
     const contacted=(l.last_contacted||'').slice(0,10);
     return scanned===todayStr||contacted===todayStr;
   });
-  const activeLeads=todayLeads;
-  log('📋 Today leads: '+activeLeads.length+' / Total: '+leads.length);
 
   const statusNote={interested:'đang quan tâm dịch vụ',waiting:'đang đợi phản hồi',no_budget:'chưa có budget',follow_up_needed:'cần follow up',closed_won:'đã chốt deal',closed_lost:'không quan tâm'};
 
