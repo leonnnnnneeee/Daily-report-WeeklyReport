@@ -161,7 +161,7 @@ app.get('/api/stats',async(req,res)=>{
 // ── REPORTS API ────────────────────────────────────
 app.get('/api/reports',requireAuth,async(req,res)=>res.json(await db('get','reports','','order=created_at.desc&limit=30')));
 app.get('/api/reports/latest',async(req,res)=>{const r=await db('get','reports','','order=created_at.desc&limit=1');res.json(r[0]||null);});
-app.patch('/api/reports/:id',async(req,res)=>{
+app.patch('/api/reports/:id',requireAuth,async(req,res)=>{
   await db('patch','reports',{content:req.body.content,updated_at:new Date().toISOString()},'id=eq.'+req.params.id);
   res.json({ok:true});
 });
@@ -485,6 +485,7 @@ app.listen(PORT,'0.0.0.0',async()=>{
   const s=await getSession();log('🔐 Session: '+(s?'LOADED ✅':'NOT SET ❌'));
   const ai=await getAIKey();log('🤖 AI: '+(ai?ai.type+' READY ✅':'NOT SET ❌'));
 });
+
 
 
 
