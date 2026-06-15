@@ -509,3 +509,57 @@ app.listen(PORT,'0.0.0.0',async()=>{
 
 
 
+
+// ── CHAT API ──────────────────────────────────────
+app.get('/api/chat/list', requireAuth, async (req, res) => {
+  const session = await getSession();
+  if (!session) return res.json([]);
+  const { TelegramClient } = require('telegram'); const { StringSession } = require('telegram/sessions');
+  try {
+    const client = new TelegramClient(new StringSession(session), TG_API_ID, TG_API_HASH, { connectionRetries: 3 });
+    await client.connect();
+    const dialogs = await client.getDialogs({ limit: 40 });
+    const chats = dialogs.map(d => ({
+      id: d.id.toString(),
+      name: d.title || 'Unknown',
+      lastMsg: d.message?.message?.slice(0, 50) || '',
+      unread: d.unreadCount,
+      date: d.message?.date
+    }));
+    await client.disconnect();
+    res.json(chats);
+  } catch (e) { log('Chat list error: ' + e.message); res.json([]); }
+});
+
+app.get('/api/chat/messages/:id', requireAuth, async (req, res) => {
+  const session = await getSession();
+  if (!session) return res.json([]);
+  const { TelegramClient } = require('telegram'); const { StringSession } = require('telegram/sessions');
+  try {
+    const client = new TelegramClient(new StringSession(session), TG_API_ID, TG_API_HASH, { connectionRetries: 3 });
+    await client.connect();
+    const entity = await client.getEntity(req.params.id);
+    const msgs = await client.getMessages(entity, { limit: 50 });
+    const results = msgs.reverse().map(m => ({
+      text: m.message,
+      fromMe: m.out,
+      date: m.date
+    })).filter(m => m.text);
+    await client.disconnect();
+    res.json(results);
+  } catch (e) { log('Messages error: ' + e.message); res.json([]); }
+});
+
+app.post('/api/chat/send', requireAuth, async (req, res) => {
+  const { chatId, text } = req.body;
+  const session = await getSession();
+  if (!session) return res.status(401).json({ error: 'No session' });
+  const { TelegramClient } = require('telegram'); const { StringSession } = require('telegram/sessions');
+  try {
+    const client = new TelegramClient(new StringSession(session), TG_API_ID, TG_API_HASH, { connectionRetries: 3 });
+    await client.connect();
+    await client.sendMessage(chatId, { message: text });
+    await client.disconnect();
+    res.json({ ok: true });
+  } catch (e) { log('Send message error: ' + e.message); res.status(500).json({ error: e.message }); }
+});
