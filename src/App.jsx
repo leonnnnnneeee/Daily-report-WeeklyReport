@@ -114,7 +114,9 @@ export default function App() {
       {/* SIDEBAR */}
       <aside className="sidebar">
         <div className="logo-section">
-          <div className="logo-icon">C</div>
+          <div className="logo-icon" style={{ overflow: 'hidden' }}>
+            <img src="https://pbs.twimg.com/profile_images/1902957820418592768/xnPqDY4i_400x400.jpg" alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          </div>
           <span style={{fontWeight:800, fontSize:18, letterSpacing:'-0.02em'}}>COINCU</span>
         </div>
         
